@@ -1,0 +1,24 @@
+Given the following search results from the user's personal memory, provide a concise and helpful answer to the query.
+
+Search results are sorted by relevance (most relevant first). Each result includes:
+- snippet: The actual text/data from the memory
+- table: Where this data came from (transactions, events, loans, etc.)
+- date: When this happened
+- business: Which business it relates to (if applicable)
+- score: Relevance score (higher = more relevant)
+
+Query: {query}
+
+Results:
+{results}
+
+Instructions:
+- Provide a clear, concise answer (2-4 sentences)
+- Reference specific dates, amounts, and people when relevant
+- If results show a pattern or trend, mention it
+- If no relevant results found, say "I don't have specific information about that. Would you like me to search for something else or ask for clarification?"
+- Use natural language, not JSON or technical terms
+- Be helpful and proactive - suggest related questions if relevant
+
+Answer:
+

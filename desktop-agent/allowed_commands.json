@@ -1,0 +1,32 @@
+{
+  "allowed_commands": [
+    {
+      "name": "ffmpeg",
+      "description": "Video processing and conversion",
+      "executable": "ffmpeg",
+      "allowed_args": [
+        "-i", "-c:v", "-c:a", "-preset", "-crf", "-b:v", "-b:a",
+        "-vf", "-af", "-f", "-y", "-n"
+      ],
+      "dangerous_args": [
+        "-exec", "-system", "-pipe"
+      ]
+    },
+    {
+      "name": "convert",
+      "description": "Image conversion (ImageMagick)",
+      "executable": "convert",
+      "allowed_args": [
+        "-resize", "-quality", "-format", "-rotate", "-crop"
+      ],
+      "dangerous_args": []
+    }
+  ],
+  "security_notes": [
+    "All commands are whitelisted explicitly",
+    "User confirmation required for all actions",
+    "No arbitrary shell execution allowed",
+    "Commands run in sandboxed environment"
+  ]
+}
+

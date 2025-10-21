@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zyana Desktop Agent</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #333;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .header {
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #666;
+    }
+
+    .section {
+      background: white;
+      border-radius: 10px;
+      padding: 25px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      color: #667eea;
+      margin-bottom: 15px;
+      font-size: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #555;
+      font-weight: 500;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #e0e0e0;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .btn {
+      background: #667eea;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.3s;
+    }
+
+    .btn:hover {
+      background: #5568d3;
+    }
+
+    .btn-small {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .folder-list {
+      list-style: none;
+    }
+
+    .folder-item {
+      background: #f5f5f5;
+      padding: 10px;
+      margin-bottom: 8px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .folder-path {
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #555;
+    }
+
+    .logs {
+      max-height: 300px;
+      overflow-y: auto;
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 5px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+
+    .log-entry {
+      padding: 5px 0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: #999;
+      margin-right: 10px;
+    }
+
+    .log-info { color: #0ea5e9; }
+    .log-success { color: #10b981; }
+    .log-error { color: #ef4444; }
+
+    .status-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+
+    .status-active {
+      background: #10b981;
+    }
+
+    .status-inactive {
+      background: #ef4444;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🤖 Zyana Desktop Agent</h1>
+      <p class="subtitle">Automated video processing and file monitoring</p>
+    </div>
+
+    <div class="section">
+      <h2>Configuration</h2>
+      <div class="form-group">
+        <label>API URL</label>
+        <input type="text" id="apiUrl" placeholder="http://localhost:8000" />
+      </div>
+      <div class="form-group">
+        <label>Auth Token</label>
+        <input type="password" id="authToken" placeholder="Your authentication token" />
+      </div>
+      <button class="btn" onclick="saveConfig()">Save Configuration</button>
+    </div>
+
+    <div class="section">
+      <h2>Watch Folders</h2>
+      <div class="form-group">
+        <input type="text" id="newFolder" placeholder="Enter folder path to watch" />
+        <button class="btn btn-small" style="margin-top: 10px;" onclick="addFolder()">Add Folder</button>
+      </div>
+      <ul class="folder-list" id="folderList"></ul>
+    </div>
+
+    <div class="section">
+      <h2>
+        <span class="status-indicator status-active"></span>
+        Activity Logs
+      </h2>
+      <button class="btn btn-small" style="margin-bottom: 10px;" onclick="refreshLogs()">Refresh</button>
+      <button class="btn btn-small" style="margin-bottom: 10px; margin-left: 10px; background: #ef4444;" onclick="clearLogs()">Clear</button>
+      <div class="logs" id="logs">
+        <p style="color: #999;">No logs yet...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // Load configuration on startup
+    async function loadConfig() {
+      const config = await ipcRenderer.invoke('get-config');
+      document.getElementById('apiUrl').value = config.apiUrl;
+      document.getElementById('authToken').value = config.authToken;
+      renderFolders(config.watchFolders);
+      refreshLogs();
+    }
+
+    async function saveConfig() {
+      const config = {
+        apiUrl: document.getElementById('apiUrl').value,
+        authToken: document.getElementById('authToken').value,
+        watchFolders: await getFolders(),
+      };
+      
+      const result = await ipcRenderer.invoke('save-config', config);
+      if (result.success) {
+        alert('Configuration saved successfully!');
+      }
+    }
+
+    async function addFolder() {
+      const folder = document.getElementById('newFolder').value;
+      if (folder) {
+        const result = await ipcRenderer.invoke('add-watch-folder', folder);
+        if (result.success) {
+          document.getElementById('newFolder').value = '';
+          renderFolders(result.folders);
+        }
+      }
+    }
+
+    async function removeFolder(folder) {
+      const result = await ipcRenderer.invoke('remove-watch-folder', folder);
+      if (result.success) {
+        renderFolders(result.folders);
+      }
+    }
+
+    async function getFolders() {
+      const config = await ipcRenderer.invoke('get-config');
+      return config.watchFolders;
+    }
+
+    function renderFolders(folders) {
+      const listEl = document.getElementById('folderList');
+      if (!folders || folders.length === 0) {
+        listEl.innerHTML = '<p style="color: #999; padding: 10px;">No folders being watched</p>';
+        return;
+      }
+
+      listEl.innerHTML = folders.map(folder => `
+        <li class="folder-item">
+          <span class="folder-path">${folder}</span>
+          <button class="btn btn-small" style="background: #ef4444;" onclick="removeFolder('${folder}')">Remove</button>
+        </li>
+      `).join('');
+    }
+
+    async function refreshLogs() {
+      const logs = await ipcRenderer.invoke('get-logs');
+      const logsEl = document.getElementById('logs');
+      
+      if (!logs || logs.length === 0) {
+        logsEl.innerHTML = '<p style="color: #999;">No logs yet...</p>';
+        return;
+      }
+
+      logsEl.innerHTML = logs.map(log => `
+        <div class="log-entry">
+          <span class="log-time">${new Date(log.timestamp).toLocaleTimeString()}</span>
+          <span class="log-${log.level}">${log.message}</span>
+        </div>
+      `).join('');
+    }
+
+    async function clearLogs() {
+      await ipcRenderer.invoke('clear-logs');
+      refreshLogs();
+    }
+
+    // Auto-refresh logs every 5 seconds
+    setInterval(refreshLogs, 5000);
+
+    // Load on startup
+    loadConfig();
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,247 @@
+{
+  "system": "You will be given a free-form message from the user. Return ONLY a JSON object that exactly matches the schema below (no extra text). Use null for unknown fields.",
+  "schema": {
+    "intent": "transaction|calendar|loan|repayment|goal|create_business|query|status|report|other",
+    "business": "string|null",
+    "type": "income|expense|transfer|null",
+    "amount": "number|null",
+    "currency": "string|null (default: PKR)",
+    "category": "string|null",
+    "person": "string|null",
+    "date": "YYYY-MM-DD|null",
+    "description": "string|null",
+    "tags": ["string"],
+    "raw_text": "string",
+    "missing_fields": ["string"],
+    "confidence": "float 0.0-1.0"
+  },
+  "examples": [
+    {
+      "input": "I lent Ahmad Rs 10000 from Vidify yesterday",
+      "output": {
+        "intent": "loan",
+        "business": "Vidify",
+        "type": null,
+        "amount": 10000,
+        "currency": "PKR",
+        "category": "loan",
+        "person": "Ahmad",
+        "date": "2025-10-20",
+        "description": "Loan to Ahmad",
+        "tags": ["loan"],
+        "raw_text": "I lent Ahmad Rs 10000 from Vidify yesterday",
+        "missing_fields": [],
+        "confidence": 0.95
+      }
+    },
+    {
+      "input": "Received 50k from milk sales today",
+      "output": {
+        "intent": "transaction",
+        "business": "MilkBusiness",
+        "type": "income",
+        "amount": 50000,
+        "currency": "PKR",
+        "category": "sales",
+        "person": null,
+        "date": "2025-10-21",
+        "description": "Milk sales",
+        "tags": ["income", "sales"],
+        "raw_text": "Received 50k from milk sales today",
+        "missing_fields": [],
+        "confidence": 0.90
+      }
+    },
+    {
+      "input": "Paid for video editing software 299 USD",
+      "output": {
+        "intent": "transaction",
+        "business": "Vidify",
+        "type": "expense",
+        "amount": 299,
+        "currency": "USD",
+        "category": "software",
+        "person": null,
+        "date": "2025-10-21",
+        "description": "Video editing software",
+        "tags": ["expense", "software"],
+        "raw_text": "Paid for video editing software 299 USD",
+        "missing_fields": [],
+        "confidence": 0.95
+      }
+    },
+    {
+      "input": "Ahmad repaid 5000",
+      "output": {
+        "intent": "repayment",
+        "business": null,
+        "type": null,
+        "amount": 5000,
+        "currency": "PKR",
+        "category": "repayment",
+        "person": "Ahmad",
+        "date": "2025-10-21",
+        "description": "Repayment from Ahmad",
+        "tags": ["repayment"],
+        "raw_text": "Ahmad repaid 5000",
+        "missing_fields": ["business"],
+        "confidence": 0.85
+      }
+    },
+    {
+      "input": "Meeting with team tomorrow at 3pm",
+      "output": {
+        "intent": "calendar",
+        "business": null,
+        "type": null,
+        "amount": null,
+        "currency": null,
+        "category": "meeting",
+        "person": null,
+        "date": "2025-10-22",
+        "description": "Meeting with team",
+        "tags": ["meeting"],
+        "raw_text": "Meeting with team tomorrow at 3pm",
+        "missing_fields": [],
+        "confidence": 0.90
+      }
+    },
+    {
+      "input": "Bought supplies 15000 last week",
+      "output": {
+        "intent": "transaction",
+        "business": null,
+        "type": "expense",
+        "amount": 15000,
+        "currency": "PKR",
+        "category": "supplies",
+        "person": null,
+        "date": "2025-10-14",
+        "description": "Supplies purchase",
+        "tags": ["expense", "supplies"],
+        "raw_text": "Bought supplies 15000 last week",
+        "missing_fields": ["business"],
+        "confidence": 0.80
+      }
+    },
+    {
+      "input": "How much did I lend Ahmad?",
+      "output": {
+        "intent": "query",
+        "business": null,
+        "type": null,
+        "amount": null,
+        "currency": null,
+        "category": "loan",
+        "person": "Ahmad",
+        "date": null,
+        "description": null,
+        "tags": ["query", "loan"],
+        "raw_text": "How much did I lend Ahmad?",
+        "missing_fields": [],
+        "confidence": 1.0
+      }
+    },
+    {
+      "input": "Show me this month's expenses for Vidify",
+      "output": {
+        "intent": "report",
+        "business": "Vidify",
+        "type": "expense",
+        "amount": null,
+        "currency": null,
+        "category": null,
+        "person": null,
+        "date": null,
+        "description": null,
+        "tags": ["report", "expense"],
+        "raw_text": "Show me this month's expenses for Vidify",
+        "missing_fields": [],
+        "confidence": 0.95
+      }
+    },
+    {
+      "input": "Start new business called TechConsulting",
+      "output": {
+        "intent": "create_business",
+        "business": "TechConsulting",
+        "type": null,
+        "amount": null,
+        "currency": null,
+        "category": null,
+        "person": null,
+        "date": null,
+        "description": "Technology consulting services",
+        "tags": ["business"],
+        "raw_text": "Start new business called TechConsulting",
+        "missing_fields": [],
+        "confidence": 0.95
+      }
+    },
+    {
+      "input": "Paid someone 3000",
+      "output": {
+        "intent": "transaction",
+        "business": null,
+        "type": "expense",
+        "amount": 3000,
+        "currency": "PKR",
+        "category": "general",
+        "person": null,
+        "date": "2025-10-21",
+        "description": "Payment",
+        "tags": ["expense"],
+        "raw_text": "Paid someone 3000",
+        "missing_fields": ["business", "person", "category"],
+        "confidence": 0.60
+      }
+    },
+    {
+      "input": "Target to earn 500k from Vidify by December",
+      "output": {
+        "intent": "goal",
+        "business": "Vidify",
+        "type": "income",
+        "amount": 500000,
+        "currency": "PKR",
+        "category": "revenue",
+        "person": null,
+        "date": "2025-12-31",
+        "description": "Revenue target for Vidify",
+        "tags": ["goal", "revenue"],
+        "raw_text": "Target to earn 500k from Vidify by December",
+        "missing_fields": [],
+        "confidence": 0.90
+      }
+    },
+    {
+      "input": "Fuel expense 2500",
+      "output": {
+        "intent": "transaction",
+        "business": null,
+        "type": "expense",
+        "amount": 2500,
+        "currency": "PKR",
+        "category": "fuel",
+        "person": null,
+        "date": "2025-10-21",
+        "description": "Fuel",
+        "tags": ["expense", "fuel"],
+        "raw_text": "Fuel expense 2500",
+        "missing_fields": ["business"],
+        "confidence": 0.75
+      }
+    }
+  ],
+  "instructions": [
+    "Always extract the raw_text exactly as provided",
+    "If business name is ambiguous, add it to missing_fields",
+    "Default currency to PKR for Pakistani context unless specified",
+    "Infer dates: 'today', 'yesterday', 'tomorrow', 'last week', specific dates",
+    "Set confidence lower (0.6-0.8) when many fields are missing or ambiguous",
+    "For queries and reports, intent should be 'query' or 'report', not 'transaction'",
+    "Tags should be relevant keywords extracted from context",
+    "Missing fields must list any critical fields needed to complete the action"
+  ]
+}
+

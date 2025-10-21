@@ -1,0 +1,43 @@
+{
+  "name": "zyana-desktop-agent",
+  "version": "1.0.0",
+  "description": "Zyana Desktop Agent for video automation and local tasks",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "electron .",
+    "build": "tsc && electron-builder",
+    "start": "electron ."
+  },
+  "keywords": ["zyana", "ai", "desktop", "automation"],
+  "author": "Sami",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "axios": "^1.6.5",
+    "chokidar": "^3.5.3",
+    "electron-store": "^8.1.0"
+  },
+  "build": {
+    "appId": "com.zyana.desktop-agent",
+    "productName": "Zyana Desktop Agent",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  }
+}
+
