@@ -6,7 +6,7 @@ pydantic>=2.5.3,<3.0.0
 pydantic-settings>=2.1.0,<3.0.0
 
 # Database
-supabase>=2.3.0,<3.0.0
+supabase>=2.9.0,<3.0.0
 psycopg2-binary>=2.9.9
 sqlalchemy>=2.0.25,<3.0.0
 alembic>=1.13.1
@@ -19,8 +19,9 @@ redis>=5.0.1
 rq>=1.15.1
 rq-scheduler>=0.13.1
 
-# HTTP client (let pip resolve compatible version)
-httpx>=0.24.0,<0.26.0
+# HTTP client (compatible versions for supabase)
+httpx>=0.27.0,<0.28.0
+httpx-sse>=0.4.0
 requests>=2.31.0
 
 # Telegram (use older version compatible with httpx <0.25)
