@@ -1,30 +1,30 @@
 # FastAPI and server
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
-pydantic==2.5.3
-pydantic-settings==2.1.0
+fastapi>=0.109.0,<0.110.0
+uvicorn[standard]>=0.27.0,<0.28.0
+python-multipart>=0.0.6
+pydantic>=2.5.3,<3.0.0
+pydantic-settings>=2.1.0,<3.0.0
 
 # Database
-supabase==2.3.0
-psycopg2-binary==2.9.9
-sqlalchemy==2.0.25
-alembic==1.13.1
+supabase>=2.3.0,<3.0.0
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.25,<3.0.0
+alembic>=1.13.1
 
 # Vector database
-qdrant-client==1.7.3
+qdrant-client>=1.7.3,<2.0.0
 
 # Redis and job queue
-redis==5.0.1
-rq==1.15.1
-rq-scheduler==0.13.1
+redis>=5.0.1
+rq>=1.15.1
+rq-scheduler>=0.13.1
 
-# HTTP client
-httpx==0.26.0
-requests==2.31.0
+# HTTP client (let pip resolve compatible version)
+httpx>=0.24.0,<0.26.0
+requests>=2.31.0
 
-# Telegram
-python-telegram-bot==20.7
+# Telegram (use older version compatible with httpx <0.25)
+python-telegram-bot>=20.0,<21.0
 
 # Google APIs
 google-auth==2.27.0
@@ -41,13 +41,13 @@ passlib[bcrypt]==1.7.4
 python-dotenv==1.0.1
 tenacity==8.2.3
 pydantic-core==2.14.6
+python-dateutil==2.8.2
 
 # Testing
 pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
 pytest-mock==3.12.0
-httpx==0.26.0
 
 # Code quality
 black==24.1.1
