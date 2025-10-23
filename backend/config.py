@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     backend_host: str = Field(default="0.0.0.0", alias="BACKEND_HOST")
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
     jwt_secret: str = Field(..., alias="JWT_SECRET")
+    webhook_url: Optional[str] = Field(default=None, alias="WEBHOOK_URL")
     
     # Environment
     environment: str = Field(default="development", alias="ENVIRONMENT")

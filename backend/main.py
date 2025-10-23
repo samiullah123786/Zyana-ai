@@ -43,6 +43,16 @@ async def startup_event():
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Backend URL: http://{settings.backend_host}:{settings.backend_port}")
     
+    # Set up Telegram webhook if in production
+    if settings.is_production and settings.webhook_url:
+        from services.telegram_bot import set_telegram_webhook
+        try:
+            webhook_url = f"{settings.webhook_url}/webhook/telegram"
+            result = await set_telegram_webhook(webhook_url)
+            logger.info(f"✅ Telegram webhook set: {result}")
+        except Exception as e:
+            logger.error(f"❌ Failed to set Telegram webhook: {e}")
+    
     # TODO: Initialize database connection pool
     # TODO: Initialize Qdrant collection
     # TODO: Verify external API connectivity
