@@ -208,10 +208,7 @@ export default function BusinessDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Revenue vs Expenses Chart */}
-          <div
-            }
-            }
-           className="animate-fade-in">
+          <div className="animate-fade-in">
             <Card>
               <CardHeader>
                 <CardTitle>Revenue vs Expenses</CardTitle>
@@ -246,10 +243,7 @@ export default function BusinessDetailPage() {
           </div>
 
           {/* Category Distribution */}
-          <div
-            }
-            }
-           className="animate-fade-in">
+          <div className="animate-fade-in">
             <Card>
               <CardHeader>
                 <CardTitle>Income by Category</CardTitle>
@@ -280,10 +274,7 @@ export default function BusinessDetailPage() {
         </div>
 
         {/* Recent Transactions */}
-        <div
-          }
-          }
-         className="animate-fade-in">
+        <div className="animate-fade-in">
           <Card>
             <CardHeader>
               <CardTitle>Recent Transactions</CardTitle>
