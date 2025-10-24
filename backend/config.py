@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     
     # Redis
     redis_url: str = Field(default="redis://localhost:6379", alias="REDIS_URL")
+    upstash_redis_rest_token: Optional[str] = Field(default=None, alias="UPSTASH_REDIS_REST_TOKEN")
     
     # PostgreSQL
     postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")

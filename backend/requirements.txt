@@ -24,8 +24,8 @@ httpx==0.27.0
 httpx-sse==0.4.0
 requests==2.31.0
 
-# Telegram (use older version compatible with httpx <0.25)
-python-telegram-bot>=20.0,<21.0
+# Telegram (compatible with httpx 0.27)
+python-telegram-bot==21.0
 
 # Google APIs
 google-auth==2.27.0
