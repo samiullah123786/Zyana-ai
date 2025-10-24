@@ -59,14 +59,9 @@ export function Navbar() {
               </button>
 
               {/* Notifications Dropdown */}
-              <AnimatePresence>
-                {notificationsOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden"
-                  >
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden animate-slide-down z-50"
+                >
                     <div className="p-4 border-b border-gray-200">
                       <h3 className="font-semibold text-gray-900">Notifications</h3>
                     </div>
@@ -88,9 +83,8 @@ export function Navbar() {
                         View all notifications
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
             </div>
 
             {/* User Avatar */}
@@ -127,14 +121,9 @@ export function Navbar() {
       </div>
 
       {/* Search Bar (Expandable) */}
-      <AnimatePresence>
-        {searchOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="border-t border-gray-200 overflow-hidden"
-          >
+      {searchOpen && (
+        <div className="border-t border-gray-200 overflow-hidden animate-slide-down"
+        >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -146,19 +135,13 @@ export function Navbar() {
                 />
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Mobile Menu */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="md:hidden border-t border-gray-200 bg-white"
-          >
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-gray-200 bg-white animate-slide-down"
+        >
             <div className="px-4 py-4 space-y-3">
               <Link href="/" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                 Dashboard
@@ -177,9 +160,8 @@ export function Navbar() {
                 Logout
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </nav>
   )
 }
