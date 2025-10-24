@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
 import {
   DollarSign,
   TrendingUp,
@@ -100,11 +99,7 @@ export default function Home() {
       {/* Hero Section with Animated Background */}
       <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white">
         <div className="absolute inset-0 bg-grid-white/10"></div>
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"
-        >
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-slide-up">
           <div className="flex items-center space-x-2 mb-4">
             <Sparkles className="w-6 h-6" />
             <span className="text-sm font-semibold uppercase tracking-wide">AI-Powered Dashboard</span>
@@ -115,7 +110,7 @@ export default function Home() {
           <p className="text-xl text-white/90 max-w-2xl">
             Here's what's happening with your businesses today
           </p>
-        </motion.div>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -156,11 +151,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Revenue Chart */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-          >
+          <div className="animate-fade-in">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
@@ -189,14 +180,10 @@ export default function Home() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
           {/* Business Comparison */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 }}
-          >
+          <div className="animate-fade-in">
             <Card>
               <CardHeader>
                 <CardTitle>Business Performance</CardTitle>
@@ -216,17 +203,12 @@ export default function Home() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Businesses List */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="lg:col-span-2"
-          >
+          <div className="lg:col-span-2 animate-fade-in">
             <Card>
               <CardHeader>
                 <CardTitle>Your Businesses</CardTitle>
@@ -240,12 +222,7 @@ export default function Home() {
                 ) : (
                   <div className="space-y-4">
                     {businesses.map((business, index) => (
-                      <motion.div
-                        key={business.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.7 + index * 0.1 }}
-                      >
+                      <div key={business.id} className="animate-fade-in">
                         <Link href={`/business/${business.slug}`}>
                           <div className="group p-4 rounded-xl border border-gray-200 hover:border-blue-300 bg-white hover:bg-blue-50/50 transition-all duration-200 hover:shadow-md">
                             <div className="flex items-center justify-between">
@@ -275,20 +252,16 @@ export default function Home() {
                             </div>
                           </div>
                         </Link>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
           {/* Recent Activity */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-          >
+          <div className="animate-fade-in">
             <Card className="h-full">
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -299,12 +272,9 @@ export default function Home() {
               <CardContent>
                 <div className="space-y-4">
                   {recentActivities.map((activity, index) => (
-                    <motion.div
+                    <div
                       key={activity.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.9 + index * 0.1 }}
-                      className="border-l-2 border-gray-200 pl-4 pb-4 last:pb-0"
+                      className="border-l-2 border-gray-200 pl-4 pb-4 last:pb-0 animate-fade-in"
                     >
                       <p className="text-sm text-gray-900 mb-1">{activity.message}</p>
                       {activity.amount && (
@@ -313,20 +283,16 @@ export default function Home() {
                         </p>
                       )}
                       <p className="text-xs text-gray-500">{activity.time}</p>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         </div>
 
         {/* Quick Actions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2 }}
-        >
+        <div className="animate-fade-in">
           <Card>
             <CardHeader>
               <CardTitle>Quick Actions</CardTitle>
@@ -360,15 +326,10 @@ export default function Home() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
 
         {/* AI Features Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.3 }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8"
-        >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 animate-fade-in">
           <Link href="/memory">
             <Card className="h-full bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 cursor-pointer">
               <CardContent className="p-8">
@@ -402,7 +363,7 @@ export default function Home() {
               </CardContent>
             </Card>
           </Link>
-        </motion.div>
+        </div>
       </div>
     </div>
   )

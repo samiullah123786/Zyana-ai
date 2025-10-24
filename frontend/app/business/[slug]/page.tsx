@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
 import {
   DollarSign,
   TrendingUp,
@@ -209,10 +208,10 @@ export default function BusinessDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Revenue vs Expenses Chart */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
+          <div
+            }
+            }
+           className="animate-fade-in">
             <Card>
               <CardHeader>
                 <CardTitle>Revenue vs Expenses</CardTitle>
@@ -244,13 +243,13 @@ export default function BusinessDetailPage() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
 
           {/* Category Distribution */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
+          <div
+            }
+            }
+           className="animate-fade-in">
             <Card>
               <CardHeader>
                 <CardTitle>Income by Category</CardTitle>
@@ -277,14 +276,14 @@ export default function BusinessDetailPage() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         </div>
 
         {/* Recent Transactions */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
+        <div
+          }
+          }
+         className="animate-fade-in">
           <Card>
             <CardHeader>
               <CardTitle>Recent Transactions</CardTitle>
@@ -337,7 +336,7 @@ export default function BusinessDetailPage() {
               </div>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       </div>
     </div>
   )

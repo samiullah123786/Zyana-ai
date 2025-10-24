@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 from clients.fal_client import fal_client
 from models.schemas import ParsedMessage
 from services.prompts import get_prompt_json, get_prompt
+from services.regex_parser import regex_parser
 
 logger = logging.getLogger(__name__)
 
@@ -143,11 +144,14 @@ Input: "{message}"
 Output (JSON only):"""
         
         try:
+            logger.info(f"Extracting structured data for: {message}")
             response = await fal_client.chat_simple(
                 prompt=extraction_prompt,
                 model="gpt-4",
                 temperature=0.0
             )
+            
+            logger.info(f"Raw AI response: {response[:200]}...")
             
             # Parse JSON response
             # Remove markdown code blocks if present
@@ -158,6 +162,7 @@ Output (JSON only):"""
                     response = response[4:]
             
             parsed_data = json.loads(response.strip())
+            logger.info(f"Successfully parsed data: {parsed_data}")
             
             # Ensure raw_text is set
             parsed_data["raw_text"] = message
@@ -165,21 +170,15 @@ Output (JSON only):"""
             return parsed_data
             
         except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {e}, response: {response}")
-            return {
-                "intent": intent,
-                "raw_text": message,
-                "missing_fields": ["all"],
-                "confidence": 0.0
-            }
+            logger.error(f"JSON decode error: {e}, response: {response if 'response' in locals() else 'No response'}")
+            logger.warning("Falling back to regex parser")
+            # Fallback to regex parser
+            return regex_parser.parse(message)
         except Exception as e:
-            logger.error(f"Extraction error: {e}")
-            return {
-                "intent": intent,
-                "raw_text": message,
-                "missing_fields": ["all"],
-                "confidence": 0.0
-            }
+            logger.error(f"Extraction error: {e}", exc_info=True)
+            logger.warning("Falling back to regex parser")
+            # Fallback to regex parser
+            return regex_parser.parse(message)
     
     def _infer_date(self, parsed: ParsedMessage) -> ParsedMessage:
         """Infer date from relative terms if not set.

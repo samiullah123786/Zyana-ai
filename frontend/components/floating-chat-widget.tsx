@@ -1,14 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import dynamic from 'next/dynamic'
 import { MessageCircle, X, Send, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
-
-// Load framer-motion only on client side
-const motion = dynamic(() => import('framer-motion').then(mod => mod.motion), { ssr: false })
-const AnimatePresence = dynamic(() => import('framer-motion').then(mod => mod.AnimatePresence), { ssr: false })
 
 interface Message {
   id: string
@@ -84,35 +79,22 @@ export function FloatingChatWidget() {
   return (
     <>
       {/* Floating Button */}
-      <AnimatePresence>
-        {!isOpen && (
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            className="fixed bottom-6 right-6 z-50"
+      {!isOpen && (
+        <div className="fixed bottom-6 right-6 z-50 animate-fade-in">
+          <Button
+            onClick={() => setIsOpen(true)}
+            className="h-16 w-16 rounded-full shadow-2xl bg-gradient-to-br from-blue-600 to-purple-600 hover:scale-110 transition-transform duration-200"
+            size="icon"
           >
-            <Button
-              onClick={() => setIsOpen(true)}
-              className="h-16 w-16 rounded-full shadow-2xl bg-gradient-to-br from-blue-600 to-purple-600 hover:scale-110 transition-transform duration-200"
-              size="icon"
-            >
-              <MessageCircle className="w-7 h-7" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></span>
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <MessageCircle className="w-7 h-7" />
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white animate-pulse"></span>
+          </Button>
+        </div>
+      )}
 
       {/* Chat Window */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed bottom-6 right-6 z-50 w-96 h-[600px] max-h-[80vh]"
+      {isOpen && (
+        <div className="fixed bottom-6 right-6 z-50 w-96 h-[600px] max-h-[80vh] animate-slide-up"
           >
             <Card className="h-full flex flex-col shadow-2xl border-0 overflow-hidden">
               {/* Header */}
@@ -140,11 +122,9 @@ export function FloatingChatWidget() {
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
                 {messages.map((message) => (
-                  <motion.div
+                  <div
                     key={message.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex ${
+                    className={`flex animate-fade-in ${
                       message.role === 'user' ? 'justify-end' : 'justify-start'
                     }`}
                   >
@@ -167,13 +147,10 @@ export function FloatingChatWidget() {
                         })}
                       </p>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
                 {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-start"
+                  <div className="flex justify-start animate-fade-in"
                   >
                     <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3">
                       <div className="flex items-center space-x-2">
@@ -181,7 +158,7 @@ export function FloatingChatWidget() {
                         <span className="text-sm text-gray-600">Zyana is thinking...</span>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>
@@ -217,9 +194,8 @@ export function FloatingChatWidget() {
                 </p>
               </div>
             </Card>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </>
   )
 }
