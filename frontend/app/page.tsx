@@ -111,9 +111,9 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
       {/* Hero Section with Animated Background */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white z-0">
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white">
         <div className="absolute inset-0 bg-grid-white/10"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-slide-up z-0">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-slide-up">
           <div className="flex items-center space-x-2 mb-4">
             <Sparkles className="w-6 h-6" />
             <span className="text-sm font-semibold uppercase tracking-wide">AI-Powered Dashboard</span>
@@ -129,7 +129,7 @@ export default function Home() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 -mt-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 -mt-16 relative z-10">
           <StatCard
             title="Total Balance"
             value={formatCurrency(totalBalance)}
