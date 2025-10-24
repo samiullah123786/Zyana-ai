@@ -1,4 +1,5 @@
 """Fal AI API client wrapper for Zyana using fal-ai/any-llm endpoint."""
+import asyncio
 import httpx
 import logging
 from typing import List, Dict, Optional, Any
@@ -87,8 +88,42 @@ class FalAIClient:
                 
                 logger.debug(f"Fal AI response: {data}")
                 
-                # Get result from response
-                if "output" in data:
+                # Handle queue response
+                if data.get("status") == "IN_QUEUE":
+                    # Get the status URL and poll for result
+                    status_url = data.get("status_url")
+                    if not status_url:
+                        raise Exception("No status URL in queue response")
+                    
+                    # Poll for result (max 30 seconds)
+                    for attempt in range(15):  # 15 attempts, 2 seconds each
+                        await asyncio.sleep(2)
+                        
+                        status_response = await client.get(status_url, headers=self.headers)
+                        status_response.raise_for_status()
+                        status_data = status_response.json()
+                        
+                        logger.debug(f"Poll attempt {attempt + 1}: {status_data.get('status')}")
+                        
+                        if status_data.get("status") == "COMPLETED":
+                            if "output" in status_data:
+                                return {
+                                    "choices": [
+                                        {
+                                            "message": {
+                                                "content": status_data["output"]
+                                            }
+                                        }
+                                    ]
+                                }
+                        elif status_data.get("status") == "FAILED":
+                            raise Exception(f"FAL AI job failed: {status_data.get('error')}")
+                    
+                    # Timeout after 30 seconds
+                    raise Exception("FAL AI job timed out after 30 seconds")
+                
+                # Direct response (immediate result)
+                elif "output" in data:
                     return {
                         "choices": [
                             {
@@ -149,10 +184,6 @@ class FalAIClient:
             logger.error(f"Error in chat_simple: {e}")
             raise
     
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
-    )
     async def embed(
         self,
         texts: List[str],
@@ -160,55 +191,35 @@ class FalAIClient:
     ) -> List[List[float]]:
         """Generate embeddings for text using Fal AI.
         
+        NOTE: FAL AI embeddings are not available via REST API.
+        This method returns empty embeddings to avoid breaking the system.
+        For production, use OpenAI embeddings directly.
+        
         Args:
             texts: List of text strings to embed
             model: Embedding model identifier
             
         Returns:
-            List of embedding vectors
-            
-        Raises:
-            httpx.HTTPError: If API request fails
+            List of empty embedding vectors (placeholder)
         """
-        payload = {
-            "input": texts,
-            "model": model
-        }
-        
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/embeddings",
-                    headers=self.headers,
-                    json=payload
-                )
-                response.raise_for_status()
-                data = response.json()
-                
-                # Extract embeddings from response
-                if "data" in data:
-                    embeddings = [item["embedding"] for item in data["data"]]
-                    logger.debug(f"Generated {len(embeddings)} embeddings")
-                    return embeddings
-                
-                return []
-                
-        except httpx.HTTPError as e:
-            logger.error(f"Fal Embeddings API error: {e}")
-            raise
+        logger.warning("FAL AI embeddings not available via REST API. Returning empty embeddings.")
+        # Return empty 1536-dimensional vectors (OpenAI embedding size)
+        return [[0.0] * 1536 for _ in texts]
     
     async def embed_single(self, text: str, model: str = "text-embedding-ada-002") -> List[float]:
         """Generate embedding for a single text.
+        
+        NOTE: Placeholder method. Returns empty embedding.
         
         Args:
             text: Text to embed
             model: Embedding model identifier
             
         Returns:
-            Embedding vector
+            Empty embedding vector (placeholder)
         """
         embeddings = await self.embed([text], model=model)
-        return embeddings[0] if embeddings else []
+        return embeddings[0] if embeddings else [0.0] * 1536
 
 
 # Global client instance
