@@ -92,15 +92,15 @@ cd zyana
 
 ### Backend Setup
 
-```bash
-cd backend
+   ```bash
+   cd backend
 
 # Create virtual environment
-python -m venv venv
+   python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+   pip install -r requirements.txt
 
 # Copy environment variables
 cp .env.example .env
@@ -110,26 +110,26 @@ cp .env.example .env
 # Copy and run: migrations/001_initial_schema.sql
 
 # Start server
-uvicorn main:app --reload
-```
+   uvicorn main:app --reload
+   ```
 
 Backend runs on: `http://localhost:8000`
 
 ### Frontend Setup
 
-```bash
-cd frontend
+   ```bash
+   cd frontend
 
 # Install dependencies
-npm install
+   npm install
 
 # Copy environment variables
 cp .env.example .env.local
 # Edit .env.local with your values
 
 # Start dev server
-npm run dev
-```
+   npm run dev
+   ```
 
 Frontend runs on: `http://localhost:3000`
 
