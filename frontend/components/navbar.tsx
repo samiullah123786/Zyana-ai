@@ -21,7 +21,7 @@ export function Navbar() {
   const unreadCount = notifications.filter(n => n.unread).length
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200 shadow-sm">
+    <nav className="sticky top-0 z-[100] bg-white/95 backdrop-blur-lg border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -60,7 +60,7 @@ export function Navbar() {
 
               {/* Notifications Dropdown */}
               {notificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden animate-slide-down z-50"
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden animate-slide-down z-[110]"
                 >
                     <div className="p-4 border-b border-gray-200">
                       <h3 className="font-semibold text-gray-900">Notifications</h3>

@@ -80,7 +80,7 @@ export function FloatingChatWidget() {
     <>
       {/* Floating Button */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 animate-fade-in">
+        <div className="fixed bottom-6 right-6 z-[90] animate-fade-in">
           <Button
             onClick={() => setIsOpen(true)}
             className="h-16 w-16 rounded-full shadow-2xl bg-gradient-to-br from-blue-600 to-purple-600 hover:scale-110 transition-transform duration-200"
@@ -94,7 +94,7 @@ export function FloatingChatWidget() {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-96 h-[600px] max-h-[80vh] animate-slide-up"
+        <div className="fixed bottom-6 right-6 z-[90] w-96 h-[600px] max-h-[80vh] animate-slide-up"
           >
             <Card className="h-full flex flex-col shadow-2xl border-0 overflow-hidden">
               {/* Header */}

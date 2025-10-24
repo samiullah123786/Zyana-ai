@@ -54,7 +54,21 @@ export default function Home() {
   const fetchBusinesses = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      // Sample data with more details
+      
+      // Try to fetch real data from backend
+      try {
+        const response = await fetch(`${apiUrl}/profile/businesses`)
+        if (response.ok) {
+          const data = await response.json()
+          setBusinesses(data.businesses || [])
+          setLoading(false)
+          return
+        }
+      } catch (apiError) {
+        console.log('Backend not available, using demo data:', apiError)
+      }
+      
+      // Fallback to demo data if backend is not available
       setBusinesses([
         { id: 1, name: 'Vidify', slug: 'vidify', balance: 125000, revenue: 180000, expenses: 55000 },
         { id: 2, name: 'MilkBusiness', slug: 'milk-business', balance: 85000, revenue: 120000, expenses: 35000 },
@@ -97,9 +111,9 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
       {/* Hero Section with Animated Background */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white">
+      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white z-0">
         <div className="absolute inset-0 bg-grid-white/10"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-slide-up">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-slide-up z-0">
           <div className="flex items-center space-x-2 mb-4">
             <Sparkles className="w-6 h-6" />
             <span className="text-sm font-semibold uppercase tracking-wide">AI-Powered Dashboard</span>
