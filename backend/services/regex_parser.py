@@ -155,6 +155,10 @@ class RegexParser:
     
     def _determine_intent(self, message: str, person: Optional[str], amount: Optional[float]) -> str:
         """Determine message intent."""
+        # Calendar keywords - check FIRST (highest priority)
+        if any(word in message for word in ['meeting', 'book', 'schedule', 'appointment', 'call', 'event', 'remind']):
+            return "calendar"
+        
         # Loan keywords
         if any(word in message for word in ['lent', 'loan', 'borrowed', 'lend']):
             return "loan"

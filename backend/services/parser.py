@@ -62,11 +62,17 @@ class MessageParser:
             # PRIMARY: Use regex parser (instant, reliable)
             parsed_data = regex_parser.parse(message)
             
+            # SAFETY: Force date=None for calendar events (they use event_time field)
+            if parsed_data.get("intent") == "calendar" and parsed_data.get("date"):
+                logger.info(f"🗓️  Calendar event detected - clearing date field")
+                parsed_data["date"] = None
+            
             # Validate and create ParsedMessage
             parsed_message = ParsedMessage(**parsed_data)
             
-            # Apply date inference
-            parsed_message = self._infer_date(parsed_message)
+            # Apply date inference (skip for calendar events)
+            if parsed_message.intent != "calendar":
+                parsed_message = self._infer_date(parsed_message)
             
             # Apply habit defaults if available
             if context and "habits" in context:
