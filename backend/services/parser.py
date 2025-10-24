@@ -1,4 +1,4 @@
-"""Message parser service using Fal AI for intent extraction."""
+"""Message parser service using AI for intent extraction with regex fallback."""
 import json
 import logging
 from datetime import datetime, timedelta
@@ -10,6 +10,14 @@ from services.prompts import get_prompt_json, get_prompt
 from services.regex_parser import regex_parser
 
 logger = logging.getLogger(__name__)
+
+# Try to import OpenAI
+try:
+    from clients.openai_client import openai_client
+    HAS_OPENAI = openai_client.enabled
+except:
+    HAS_OPENAI = False
+    logger.warning("OpenAI client not available")
 
 
 class MessageParser:
@@ -143,26 +151,67 @@ Now extract from this message:
 Input: "{message}"
 Output (JSON only):"""
         
+        # Try OpenAI first (most reliable)
+        if HAS_OPENAI:
+            try:
+                logger.info(f"Using OpenAI for extraction: {message[:50]}...")
+                response = await openai_client.chat_simple(
+                    prompt=extraction_prompt,
+                    model="gpt-3.5-turbo",
+                    temperature=0.0
+                )
+                
+                logger.info(f"OpenAI response received")
+                parsed_data = self._parse_ai_response(response, message)
+                if parsed_data:
+                    return parsed_data
+                    
+            except Exception as e:
+                logger.warning(f"OpenAI failed: {e}, trying FAL AI")
+        
+        # Try FAL AI as backup
         try:
-            logger.info(f"Extracting structured data for: {message}")
+            logger.info(f"Using FAL AI for extraction: {message[:50]}...")
             response = await fal_client.chat_simple(
                 prompt=extraction_prompt,
                 model="gpt-4",
                 temperature=0.0
             )
             
-            logger.info(f"Raw AI response: {response[:200]}...")
+            logger.info(f"FAL AI response received")
+            parsed_data = self._parse_ai_response(response, message)
+            if parsed_data:
+                return parsed_data
+                
+        except Exception as e:
+            logger.warning(f"FAL AI failed: {e}")
+        
+        # Fallback to regex parser (always works)
+        logger.info("Using regex parser fallback")
+        return regex_parser.parse(message)
+    
+    def _parse_ai_response(self, response: str, message: str) -> Optional[Dict[str, Any]]:
+        """Parse AI response JSON.
+        
+        Args:
+            response: AI response text
+            message: Original message
             
-            # Parse JSON response
+        Returns:
+            Parsed data dict or None if parsing fails
+        """
+        try:
             # Remove markdown code blocks if present
             response = response.strip()
             if response.startswith("```"):
-                response = response.split("```")[1]
-                if response.startswith("json"):
-                    response = response[4:]
+                parts = response.split("```")
+                if len(parts) >= 2:
+                    response = parts[1]
+                    if response.startswith("json"):
+                        response = response[4:]
             
             parsed_data = json.loads(response.strip())
-            logger.info(f"Successfully parsed data: {parsed_data}")
+            logger.info(f"Successfully parsed AI response")
             
             # Ensure raw_text is set
             parsed_data["raw_text"] = message
@@ -170,15 +219,11 @@ Output (JSON only):"""
             return parsed_data
             
         except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {e}, response: {response if 'response' in locals() else 'No response'}")
-            logger.warning("Falling back to regex parser")
-            # Fallback to regex parser
-            return regex_parser.parse(message)
+            logger.error(f"JSON decode error: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Extraction error: {e}", exc_info=True)
-            logger.warning("Falling back to regex parser")
-            # Fallback to regex parser
-            return regex_parser.parse(message)
+            logger.error(f"Error parsing AI response: {e}")
+            return None
     
     def _infer_date(self, parsed: ParsedMessage) -> ParsedMessage:
         """Infer date from relative terms if not set.

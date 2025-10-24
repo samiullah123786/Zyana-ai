@@ -18,7 +18,8 @@ class FalAIClient:
             api_key: Fal API key (defaults to settings)
         """
         self.api_key = api_key or settings.fal_api_key
-        self.base_url = "https://fal.run"
+        # FAL AI uses OpenAI-compatible endpoint
+        self.base_url = "https://api.fal.ai"
         self.headers = {
             "Authorization": f"Key {self.api_key}",
             "Content-Type": "application/json"

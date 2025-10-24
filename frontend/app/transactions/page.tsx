@@ -353,6 +353,8 @@ function TransactionModal({
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      console.log('API URL:', apiUrl)
+      console.log('Transaction data:', formData)
       
       const response = await fetch(`${apiUrl}/finance/transactions`, {
         method: 'POST',
@@ -360,16 +362,19 @@ function TransactionModal({
         body: JSON.stringify(formData)
       })
       
+      console.log('Response status:', response.status)
+      const responseData = await response.json()
+      console.log('Response data:', responseData)
+      
       if (response.ok) {
         alert('✅ Transaction added successfully!')
         onSuccess()
       } else {
-        const error = await response.json()
-        alert(`❌ Failed to add transaction: ${error.detail || 'Unknown error'}`)
+        alert(`❌ Failed to add transaction: ${responseData.detail || JSON.stringify(responseData)}`)
       }
     } catch (error) {
       console.error('Error adding transaction:', error)
-      alert('❌ Error adding transaction')
+      alert(`❌ Error adding transaction: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setSaving(false)
     }

@@ -59,7 +59,7 @@ class RegexParser:
             "currency": currency or "PKR",
             "category": self._extract_category(message_lower, trans_type),
             "person": person,
-            "date": extracted_date.isoformat() if extracted_date else None,
+            "date": extracted_date,  # Keep as date object, not isoformat
             "description": message,
             "tags": self._extract_tags(message_lower, intent),
             "raw_text": message,
@@ -219,7 +219,7 @@ class RegexParser:
         elif "this week" in message:
             return today
         
-        return today  # Default to today
+        return None  # Return None if no date mentioned
     
     def _extract_category(self, message: str, trans_type: Optional[str]) -> str:
         """Extract category from message."""
