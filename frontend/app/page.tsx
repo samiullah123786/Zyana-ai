@@ -220,7 +220,14 @@ export default function Home() {
           <div className="lg:col-span-2 animate-fade-in">
             <Card>
               <CardHeader>
-                <CardTitle>Your Businesses</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Your Businesses</CardTitle>
+                  <Link href="/businesses">
+                    <Button variant="outline" size="sm">
+                      Manage All
+                    </Button>
+                  </Link>
+                </div>
               </CardHeader>
               <CardContent>
                 {loading ? (
@@ -233,10 +240,12 @@ export default function Home() {
                     <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">No Businesses Yet</h3>
                     <p className="text-gray-600 mb-6">Start by adding your first business to track finances</p>
-                    <Button className="bg-blue-600 hover:bg-blue-700">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Business
-                    </Button>
+                    <Link href="/businesses">
+                      <Button className="bg-blue-600 hover:bg-blue-700">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Business
+                      </Button>
+                    </Link>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -318,10 +327,16 @@ export default function Home() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Link href="/transactions/new">
+                <Link href="/transactions">
                   <Button variant="outline" className="w-full h-24 flex-col space-y-2 hover:scale-105 transition-transform">
                     <Plus className="w-6 h-6 text-blue-600" />
                     <span className="text-sm font-medium">Add Transaction</span>
+                  </Button>
+                </Link>
+                <Link href="/businesses">
+                  <Button variant="outline" className="w-full h-24 flex-col space-y-2 hover:scale-105 transition-transform">
+                    <Building2 className="w-6 h-6 text-purple-600" />
+                    <span className="text-sm font-medium">Manage Businesses</span>
                   </Button>
                 </Link>
                 <Link href="/calendar">
@@ -334,12 +349,6 @@ export default function Home() {
                   <Button variant="outline" className="w-full h-24 flex-col space-y-2 hover:scale-105 transition-transform">
                     <Target className="w-6 h-6 text-purple-600" />
                     <span className="text-sm font-medium">Set Goal</span>
-                  </Button>
-                </Link>
-                <Link href="/reports">
-                  <Button variant="outline" className="w-full h-24 flex-col space-y-2 hover:scale-105 transition-transform">
-                    <FileText className="w-6 h-6 text-orange-600" />
-                    <span className="text-sm font-medium">View Reports</span>
                   </Button>
                 </Link>
               </div>

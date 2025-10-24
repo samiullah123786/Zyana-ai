@@ -124,6 +124,68 @@ async def get_transaction(transaction_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.put("/transactions/{transaction_id}", response_model=dict)
+async def update_transaction(transaction_id: int, transaction: TransactionCreate):
+    """Update a transaction.
+    
+    Args:
+        transaction_id: Transaction ID
+        transaction: Updated transaction data
+        
+    Returns:
+        Updated transaction
+    """
+    try:
+        result = supabase_client.admin.table("transactions").update({
+            "business_id": transaction.business_id,
+            "type": transaction.type,
+            "amount": float(transaction.amount),
+            "currency": transaction.currency,
+            "category": transaction.category,
+            "person": transaction.person,
+            "date": transaction.date.isoformat(),
+            "description": transaction.description,
+            "tags": transaction.tags
+        }).eq("id", transaction_id).execute()
+        
+        logger.info(f"Updated transaction {transaction_id}")
+        
+        return {
+            "success": True,
+            "message": "✅ Transaction updated",
+            "data": result.data[0] if result.data else {}
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating transaction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/transactions/{transaction_id}", response_model=dict)
+async def delete_transaction(transaction_id: int):
+    """Delete a transaction.
+    
+    Args:
+        transaction_id: Transaction ID
+        
+    Returns:
+        Success status
+    """
+    try:
+        supabase_client.admin.table("transactions").delete().eq("id", transaction_id).execute()
+        
+        logger.info(f"Deleted transaction {transaction_id}")
+        
+        return {
+            "success": True,
+            "message": "✅ Transaction deleted"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error deleting transaction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/loans", response_model=dict)
 async def create_loan(loan: LoanCreate):
     """Create a new loan record.
