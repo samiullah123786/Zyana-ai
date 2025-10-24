@@ -10,6 +10,8 @@ const nextConfig = {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
   },
+  // Transpile framer-motion for compatibility with Next.js 14
+  transpilePackages: ['framer-motion'],
   // Ensure CSS is properly handled
   experimental: {
     optimizeCss: true,
