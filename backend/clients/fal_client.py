@@ -1,4 +1,4 @@
-"""Fal AI API client wrapper for Zyana."""
+"""Fal AI API client wrapper for Zyana using fal-ai/any-llm endpoint."""
 import httpx
 import logging
 from typing import List, Dict, Optional, Any
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class FalAIClient:
-    """Client for interacting with Fal AI API."""
+    """Client for interacting with Fal AI API using any-llm endpoint."""
     
     def __init__(self, api_key: Optional[str] = None):
         """Initialize Fal AI client.
@@ -18,75 +18,99 @@ class FalAIClient:
             api_key: Fal API key (defaults to settings)
         """
         self.api_key = api_key or settings.fal_api_key
-        # FAL AI uses OpenAI-compatible endpoint
-        self.base_url = "https://api.fal.ai"
+        # FAL AI base URL for REST API
+        self.base_url = "https://queue.fal.run"
         self.headers = {
             "Authorization": f"Key {self.api_key}",
             "Content-Type": "application/json"
         }
     
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=1, max=5)
     )
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        model: str = "gpt-4",
+        model: str = "openai/gpt-5-chat",
         temperature: float = 0.0,
-        functions: Optional[List[Dict]] = None,
         max_tokens: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Call Fal Chat API for text generation.
+        """Call Fal AI any-llm endpoint for text generation.
         
         Args:
             messages: List of message dicts with 'role' and 'content'
-            model: Model identifier (gpt-4, gpt-3.5-turbo, etc.)
+            model: Model identifier (openai/gpt-5-chat, google/gemini-2.5-flash, etc.)
             temperature: Sampling temperature (0.0 - 2.0)
-            functions: Optional function definitions for function calling
             max_tokens: Maximum tokens to generate
             
         Returns:
-            Response dict with generated text and metadata
+            Response dict with generated text
             
         Raises:
             httpx.HTTPError: If API request fails
         """
+        # Build prompt from messages
+        system_prompt = None
+        prompt = ""
+        
+        for msg in messages:
+            if msg["role"] == "system":
+                system_prompt = msg["content"]
+            elif msg["role"] == "user":
+                prompt = msg["content"]
+        
+        # Build FAL AI any-llm payload
         payload = {
-            "messages": messages,
+            "prompt": prompt,
             "model": model,
             "temperature": temperature,
+            "priority": "latency"  # For faster responses
         }
         
-        if functions:
-            payload["functions"] = functions
-            payload["function_call"] = "auto"
+        if system_prompt:
+            payload["system_prompt"] = system_prompt
         
         if max_tokens:
             payload["max_tokens"] = max_tokens
         
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
+                # Submit request to FAL AI any-llm
                 response = await client.post(
-                    f"{self.base_url}/chat/completions",
+                    f"{self.base_url}/fal-ai/any-llm",
                     headers=self.headers,
-                    json=payload
+                    json={"input": payload}
                 )
                 response.raise_for_status()
                 data = response.json()
                 
-                logger.debug(f"Fal Chat API response: {data}")
-                return data
+                logger.debug(f"Fal AI response: {data}")
+                
+                # Get result from response
+                if "output" in data:
+                    return {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": data["output"]
+                                }
+                            }
+                        ]
+                    }
+                else:
+                    logger.error(f"Unexpected FAL AI response format: {data}")
+                    raise Exception("Invalid response format from FAL AI")
                 
         except httpx.HTTPError as e:
-            logger.error(f"Fal Chat API error: {e}")
+            logger.error(f"Fal AI API error: {e}")
             raise
     
     async def chat_simple(
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
-        model: str = "gpt-4",
+        model: str = "openai/gpt-5-chat",
         temperature: float = 0.0
     ) -> str:
         """Simplified chat method that returns just the text response.
@@ -94,7 +118,7 @@ class FalAIClient:
         Args:
             prompt: User prompt
             system_prompt: Optional system prompt
-            model: Model identifier
+            model: Model identifier (openai/gpt-5-chat recommended)
             temperature: Sampling temperature
             
         Returns:
@@ -107,17 +131,23 @@ class FalAIClient:
         
         messages.append({"role": "user", "content": prompt})
         
-        response = await self.chat(messages, model=model, temperature=temperature)
-        
-        # Extract text from response
-        if "choices" in response and len(response["choices"]) > 0:
-            choice = response["choices"][0]
-            if "message" in choice:
-                return choice["message"]["content"]
-            elif "text" in choice:
-                return choice["text"]
-        
-        return ""
+        try:
+            response = await self.chat(messages, model=model, temperature=temperature)
+            
+            # Extract text from response
+            if "choices" in response and len(response["choices"]) > 0:
+                choice = response["choices"][0]
+                if "message" in choice and "content" in choice["message"]:
+                    return choice["message"]["content"]
+                elif "text" in choice:
+                    return choice["text"]
+            
+            logger.warning(f"Unexpected response structure: {response}")
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Error in chat_simple: {e}")
+            raise
     
     @retry(
         stop=stop_after_attempt(3),

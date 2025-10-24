@@ -97,9 +97,10 @@ Message: "{message}"
 Intent:"""
         
         try:
+            # Use FAL AI with fast model for classification
             response = await fal_client.chat_simple(
                 prompt=classification_prompt,
-                model="gpt-3.5-turbo",
+                model="google/gemini-2.5-flash-lite",  # Fast model for classification
                 temperature=0.0
             )
             
@@ -171,10 +172,10 @@ Output (JSON only):"""
         
         # Try FAL AI as backup
         try:
-            logger.info(f"Using FAL AI for extraction: {message[:50]}...")
+            logger.info(f"Using FAL AI (GPT-5) for extraction: {message[:50]}...")
             response = await fal_client.chat_simple(
                 prompt=extraction_prompt,
-                model="gpt-4",
+                model="openai/gpt-5-chat",  # Using GPT-5 via FAL AI
                 temperature=0.0
             )
             
