@@ -94,10 +94,10 @@ class RegexParser:
         """Extract person name from message."""
         # Patterns for person names
         patterns = [
-            r'(?:lent|gave|paid)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',  # After action: "gave Ahmad", "lent Indian"
-            r'([A-Z][a-z]+)\s+(?:repaid|paid back)',  # Before action: "Ahmad repaid"
-            r'(?:from|to)\s+([A-Z][a-z]+)',  # After preposition: "from Zain", "to Ahmad"
-            r'(?:for|with)\s+([A-Z][a-z]+)',  # "for Indian"
+            r'(?:lent|gave|paid)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-z]+)?)',  # After action: "gave Ahmad", "lent Indian"
+            r'([A-Z][a-zA-Z]+)\s+(?:repaid|paid back)',  # Before action: "Ahmad repaid"
+            r'(?:from|to)\s+([A-Z][a-zA-Z]+)',  # After preposition: "from Zain", "to Ahmad"
+            r'(?:for)\s+([A-Z][a-zA-Z]+)',  # "for Indian"
         ]
         
         for pattern in patterns:
@@ -105,17 +105,23 @@ class RegexParser:
             if match:
                 name = match.group(1).strip()
                 # Exclude business names and common words
-                if name.lower() in ['vidify', 'milkbusiness', 'yazman', 'express', 'today', 'yesterday', 'tomorrow']:
+                if name.lower() in ['vidify', 'milkbusiness', 'yazman', 'express', 'today', 'yesterday', 'tomorrow', 'from', 'with']:
                     continue
                 # Include names like Indian, Zain, Ahmad, etc.
                 return name
         
         # Try to extract capitalized names not caught by patterns
         words = message.split()
-        for word in words:
-            if len(word) > 2 and word[0].isupper():
-                if word.lower() not in ['vidify', 'milkbusiness', 'yazman', 'express', 'today', 'yesterday', 'tomorrow', 'rs', 'pkr', 'usd']:
-                    return word
+        for i, word in enumerate(words):
+            # Clean word of punctuation
+            clean_word = word.strip('.,!?;:')
+            if len(clean_word) > 2 and clean_word[0].isupper():
+                # Skip if it's the first word in sentence (might be "I")
+                if i == 0 and clean_word.lower() == 'i':
+                    continue
+                # Skip business names and common words
+                if clean_word.lower() not in ['vidify', 'milkbusiness', 'yazman', 'express', 'today', 'yesterday', 'tomorrow', 'rs', 'pkr', 'usd', 'the', 'from', 'with']:
+                    return clean_word
         
         return None
     

@@ -29,10 +29,10 @@ class MessageParser:
         self.system_prompt = get_prompt("system_zyana")
     
     async def parse(self, message: str, context: Optional[Dict[str, Any]] = None) -> ParsedMessage:
-        """Parse a message into structured format using two-stage approach.
+        """Parse a message into structured format using FAST regex-first approach.
         
-        Stage 1: Quick intent classification
-        Stage 2: Structured data extraction
+        STRATEGY: Use instant regex parser as primary method for speed.
+        FAL AI is too slow (30+ seconds) for real-time chat.
         
         Args:
             message: User message text
@@ -41,15 +41,14 @@ class MessageParser:
         Returns:
             ParsedMessage with extracted fields
         """
-        # Stage 1: Quick intent classification
-        intent = await self._classify_intent(message)
-        logger.info(f"Classified intent: {intent}")
+        logger.info(f"⚡ Parsing message (regex-first approach): {message[:50]}...")
         
-        # Stage 2: Extract structured data
-        parsed_data = await self._extract_structured_data(message, intent, context)
-        
-        # Validate and create ParsedMessage
         try:
+            # Use FAST regex parser (instant response)
+            parsed_data = regex_parser.parse(message)
+            logger.info(f"✅ Regex parser succeeded: intent={parsed_data.get('intent')}, confidence={parsed_data.get('confidence')}")
+            
+            # Validate and create ParsedMessage
             parsed_message = ParsedMessage(**parsed_data)
             
             # Apply date inference
@@ -62,7 +61,7 @@ class MessageParser:
             return parsed_message
             
         except Exception as e:
-            logger.error(f"Error creating ParsedMessage: {e}")
+            logger.error(f"Error in regex parser: {e}", exc_info=True)
             # Return basic structure on error
             return ParsedMessage(
                 intent="other",

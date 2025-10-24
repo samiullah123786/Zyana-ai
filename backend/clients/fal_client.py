@@ -27,8 +27,8 @@ class FalAIClient:
         }
     
     @retry(
-        stop=stop_after_attempt(2),
-        wait=wait_exponential(multiplier=1, min=1, max=5)
+        stop=stop_after_attempt(1),  # Only try once (no retries)
+        wait=wait_exponential(multiplier=1, min=1, max=2)
     )
     async def chat(
         self,
@@ -95,8 +95,8 @@ class FalAIClient:
                     if not status_url:
                         raise Exception("No status URL in queue response")
                     
-                    # Poll for result (max 30 seconds)
-                    for attempt in range(15):  # 15 attempts, 2 seconds each
+                    # Poll for result (max 10 seconds for fast response)
+                    for attempt in range(5):  # 5 attempts, 2 seconds each
                         await asyncio.sleep(2)
                         
                         status_response = await client.get(status_url, headers=self.headers)
@@ -119,8 +119,8 @@ class FalAIClient:
                         elif status_data.get("status") == "FAILED":
                             raise Exception(f"FAL AI job failed: {status_data.get('error')}")
                     
-                    # Timeout after 30 seconds
-                    raise Exception("FAL AI job timed out after 30 seconds")
+                    # Timeout after 10 seconds
+                    raise Exception("FAL AI job timed out after 10 seconds")
                 
                 # Direct response (immediate result)
                 elif "output" in data:
