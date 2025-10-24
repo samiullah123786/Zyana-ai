@@ -1,4 +1,4 @@
-"""Main Core Agent Router - orchestrates all specialized agents."""
+"""Main Core Agent Router - orchestrates all specialized agents with JARVIS-level intelligence."""
 import logging
 from typing import Dict, Any
 
@@ -8,6 +8,7 @@ from agents.calendar import calendar_agent
 from agents.habit_learner import habit_learner
 from clients.fal_client import fal_client
 from services.prompts import get_prompt
+from services.intelligence_engine import intelligence_engine
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class MainCoreAgent:
         self.system_prompt = get_prompt("system_zyana")
     
     async def route(self, parsed: ParsedMessage, user_id: str) -> AgentResponse:
-        """Route parsed message to appropriate agent.
+        """Route parsed message to appropriate agent with JARVIS-level intelligence.
         
         Args:
             parsed: Parsed message with intent
@@ -29,9 +30,20 @@ class MainCoreAgent:
         Returns:
             AgentResponse with result
         """
-        logger.info(f"Routing intent: {parsed.intent} for user: {user_id}")
+        logger.info(f"🧠 Routing intent: {parsed.intent} for user: {user_id}")
         
         try:
+            # 🚀 JARVIS UPGRADE: Enhance context with learned patterns and memories
+            context = await intelligence_engine.enhance_context(
+                user_id, parsed.raw_text, parsed.intent
+            )
+            
+            logger.info(f"Enhanced context: {len(context.get('related_memories', []))} memories found")
+            
+            # Apply learned patterns to missing fields
+            if parsed.missing_fields and context.get("learned_patterns"):
+                parsed = self._apply_learned_patterns(parsed, context["learned_patterns"])
+            
             # Route based on intent
             if parsed.intent in ["transaction", "loan", "repayment", "query", "report"]:
                 result = await finance_agent.process(parsed, user_id)
@@ -48,16 +60,38 @@ class MainCoreAgent:
             elif parsed.intent == "goal":
                 result = await self._create_goal(parsed, user_id)
             
-            else:
-                result = await self._handle_other(parsed, user_id)
+            elif parsed.intent == "insights":
+                # 🧠 NEW: Generate intelligent insights
+                result = await self._generate_insights(user_id)
             
-            # Learn from interaction
+            else:
+                result = await self._handle_other(parsed, user_id, context)
+            
+            # 🧠 JARVIS UPGRADE: Learn from this interaction
+            await intelligence_engine.learn_from_interaction(
+                user_id,
+                parsed.raw_text,
+                parsed.intent,
+                {
+                    "business": parsed.business,
+                    "amount": parsed.amount,
+                    "person": parsed.person
+                },
+                "success" if result.get("success") else "failure"
+            )
+            
+            # Learn habits
             await habit_learner.observe_interaction(parsed, user_id)
+            
+            # 🚀 Add proactive suggestions to response
+            message = result.get("message", "Done")
+            if context.get("suggestions"):
+                message += "\n\n" + "\n".join(context["suggestions"][:2])
             
             # Create AgentResponse
             return AgentResponse(
                 success=result.get("success", True),
-                message=result.get("message", "Done"),
+                message=message,
                 data=result.get("data"),
                 next_action=result.get("next_action")
             )
@@ -69,6 +103,30 @@ class MainCoreAgent:
                 message=f"Sorry, I encountered an error: {str(e)}",
                 data=None
             )
+    
+    def _apply_learned_patterns(self, parsed: ParsedMessage, patterns: Dict[str, Any]) -> ParsedMessage:
+        """Apply learned patterns to fill missing fields.
+        
+        Args:
+            parsed: ParsedMessage with missing fields
+            patterns: Learned user patterns
+            
+        Returns:
+            Enhanced ParsedMessage
+        """
+        # Apply default business
+        if not parsed.business and patterns.get("default_business"):
+            parsed.business = patterns["default_business"]
+            if "business" in parsed.missing_fields:
+                parsed.missing_fields.remove("business")
+            logger.info(f"🧠 Applied learned default business: {parsed.business}")
+        
+        # Apply preferred currency
+        if not parsed.currency and patterns.get("preferred_currency"):
+            parsed.currency = patterns["preferred_currency"]
+            logger.info(f"🧠 Applied learned currency: {parsed.currency}")
+        
+        return parsed
     
     async def _create_business(self, parsed: ParsedMessage, user_id: str) -> Dict[str, Any]:
         """Create a new business.
@@ -175,27 +233,72 @@ class MainCoreAgent:
             "data": result.data[0] if result.data else {}
         }
     
-    async def _handle_other(self, parsed: ParsedMessage, user_id: str) -> Dict[str, Any]:
-        """Handle other intents using Fal AI.
+    async def _generate_insights(self, user_id: str) -> Dict[str, Any]:
+        """Generate intelligent insights and analysis.
+        
+        Args:
+            user_id: User identifier
+            
+        Returns:
+            Response dict with insights
+        """
+        insights_data = await intelligence_engine.generate_insights(user_id)
+        
+        # Format insights as message
+        message = insights_data.get("message", "")
+        
+        if insights_data.get("insights"):
+            message += "\n\n" + "\n".join(insights_data["insights"])
+        
+        if insights_data.get("recommendations"):
+            message += "\n\n🎯 Recommendations:\n" + "\n".join(insights_data["recommendations"])
+        
+        return {
+            "success": True,
+            "message": message,
+            "data": insights_data.get("summary")
+        }
+    
+    async def _handle_other(self, parsed: ParsedMessage, user_id: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Handle other intents using Fal AI with enhanced context.
         
         Args:
             parsed: Parsed message
             user_id: User identifier
+            context: Enhanced context from intelligence engine
             
         Returns:
             Response dict
         """
-        # Use Fal to generate a helpful response
-        response = await fal_client.chat_simple(
-            prompt=parsed.raw_text,
-            system_prompt=self.system_prompt,
-            temperature=0.7
-        )
+        # Build context-aware prompt
+        context_info = ""
+        if context and context.get("related_memories"):
+            memories = context["related_memories"][:3]
+            if memories:
+                context_info = "\n\nRelated context from memory:\n" + "\n".join(
+                    [f"- {m.get('content', '')}" for m in memories]
+                )
         
-        return {
-            "success": True,
-            "message": response or "I'm not sure how to help with that. Can you rephrase?"
-        }
+        enhanced_prompt = parsed.raw_text + context_info
+        
+        # Use Fal to generate a helpful response
+        try:
+            response = await fal_client.chat_simple(
+                prompt=enhanced_prompt,
+                system_prompt=self.system_prompt + "\n\nYou are JARVIS - an intelligent, proactive assistant. Be helpful, concise, and anticipate user needs.",
+                temperature=0.7
+            )
+            
+            return {
+                "success": True,
+                "message": response or "I'm here to help! What would you like to know?"
+            }
+        except Exception as e:
+            logger.error(f"Error in AI response: {e}")
+            return {
+                "success": True,
+                "message": "I'm here to help! Try asking about your finances, calendar, or business insights."
+            }
 
 
 # Global instance

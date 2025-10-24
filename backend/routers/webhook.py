@@ -206,48 +206,69 @@ async def _handle_telegram_command(command: str, user_id: str) -> str:
     """
     if command == "/start":
         return (
-            "👋 Welcome to Zyana!\n\n"
-            "I'm your personal AI assistant. I can help you:\n"
-            "• Track finances across your businesses\n"
-            "• Manage calendar events\n"
-            "• Search your personal memory\n"
-            "• And much more!\n\n"
-            "Just send me a message like:\n"
-            '"I lent Ahmad Rs 10,000 from Vidify"\n\n'
+            "👋 Welcome to Zyana - Your JARVIS!\n\n"
+            "I'm not just an assistant - I'm your intelligent companion. I learn from every interaction and help you:\n\n"
+            "🧠 Smart Finance Tracking\n"
+            "• Automatically remember your businesses\n"
+            "• Learn your spending patterns\n"
+            "• Provide proactive insights\n\n"
+            "📊 Intelligent Analysis\n"
+            "• Generate smart financial insights\n"
+            "• Predict patterns\n"
+            "• Give personalized recommendations\n\n"
+            "🎯 Context-Aware Memory\n"
+            "• Remember important conversations\n"
+            "• Recall past transactions\n"
+            "• Understand your preferences\n\n"
+            "Just talk to me naturally:\n"
+            '"I lent Ahmad Rs 10,000 from Vidify"\n'
+            '"Show me my insights"\n'
+            '"What are my pending loans?"\n\n'
             "Commands:\n"
+            "/insights - AI-powered insights\n"
             "/status - Check balances\n"
-            "/report - Generate report\n"
-            "/help - Show help"
+            "/help - Full command list"
         )
     
     elif command == "/status":
-        # TODO: Get actual status from database
-        return "📊 Status:\n\nVidify: Rs 125,000\nMilkBusiness: Rs 85,000\nYazman Express: Rs 50,000"
+        from agents.router import main_agent
+        result = await main_agent._get_status(user_id)
+        return result.get("message", "Unable to fetch status")
+    
+    elif command == "/insights":
+        from agents.router import main_agent
+        result = await main_agent._generate_insights(user_id)
+        return result.get("message", "No insights available yet. Start tracking to get intelligent analysis!")
     
     elif command == "/report":
-        return "📈 Generating your report... (Feature coming soon!)"
+        from agents.router import main_agent
+        result = await main_agent._generate_insights(user_id)
+        return result.get("message", "No data available yet!")
     
     elif command == "/help":
         return (
-            "🤖 Zyana Help\n\n"
-            "Send me natural messages like:\n"
+            "🤖 Zyana - Your JARVIS Assistant\n\n"
+            "💬 Talk naturally:\n"
             "• 'Received 50k from milk sales today'\n"
-            "• 'Meeting with team tomorrow at 3pm'\n"
-            "• 'How much did I lend Ahmad?'\n\n"
-            "Commands:\n"
-            "/start - Welcome message\n"
-            "/status - Check balances\n"
-            "/report - Generate report\n"
-            "/add_business - Add new business\n"
-            "/sync_calendar - Sync Google Calendar"
+            "• 'I gave Indian $130 for anime videos'\n"
+            "• 'Ahmad owes me 10,000'\n"
+            "• 'Show me my insights'\n"
+            "• 'What did I spend on marketing?'\n\n"
+            "🎯 Smart Commands:\n"
+            "/start - Introduction\n"
+            "/insights - AI-powered analysis 🧠\n"
+            "/status - Quick balance check\n"
+            "/report - Detailed financial report\n"
+            "/help - This help message\n\n"
+            "✨ I learn from every message and get smarter at helping you!"
         )
     
     elif command == "/add_business":
         return "To add a new business, just tell me: 'Start new business called [Name]'"
     
     elif command == "/sync_calendar":
-        return "🗓️ Syncing Google Calendar... (Feature coming soon!)"
+        return "🗓️ Calendar sync coming soon! I'll let you know when it's ready."
     
     else:
-        return "Unknown command. Type /help for available commands."
+        return "❓ Unknown command. Type /help to see what I can do!"
 
