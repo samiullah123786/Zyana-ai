@@ -70,10 +70,13 @@ class FinanceAgent:
                 "data": None
             }
         
+        # Get database user_id from telegram user_id
+        db_user_id = await self._get_or_create_user(user_id)
+        
         # Insert transaction
         result = supabase_client.admin.table("transactions").insert({
             "business_id": business_id,
-            "user_id": 1,  # TODO: Map user_id from auth
+            "user_id": db_user_id,
             "type": parsed.type,
             "amount": parsed.amount,
             "currency": parsed.currency or "PKR",
@@ -133,9 +136,12 @@ class FinanceAgent:
                 "data": None
             }
         
+        # Get database user_id from telegram user_id
+        db_user_id = await self._get_or_create_user(user_id)
+        
         result = supabase_client.admin.table("loans").insert({
             "business_id": business_id,
-            "user_id": 1,
+            "user_id": db_user_id,
             "person": parsed.person,
             "amount": parsed.amount,
             "currency": parsed.currency or "PKR",
@@ -234,6 +240,38 @@ class FinanceAgent:
             "message": result.summary if hasattr(result, 'summary') else "Query processed",
             "data": result.results if hasattr(result, 'results') else []
         }
+    
+    async def _get_or_create_user(self, telegram_id: str) -> int:
+        """Get or create user from telegram ID.
+        
+        Args:
+            telegram_id: Telegram user ID
+            
+        Returns:
+            Database user ID
+        """
+        try:
+            # Check if user exists
+            result = supabase_client.admin.table("users").select("id").eq(
+                "telegram_id", telegram_id
+            ).limit(1).execute()
+            
+            if result.data:
+                return result.data[0]["id"]
+            
+            # Create new user
+            new_user = supabase_client.admin.table("users").insert({
+                "telegram_id": telegram_id,
+                "name": f"User {telegram_id}"
+            }).execute()
+            
+            logger.info(f"✅ Created new user: telegram_id={telegram_id}, db_id={new_user.data[0]['id']}")
+            return new_user.data[0]["id"]
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting/creating user: {e}")
+            # Fallback to user_id 1
+            return 1
     
     async def _get_business_id(self, business_name: str) -> int:
         """Get business ID by name.

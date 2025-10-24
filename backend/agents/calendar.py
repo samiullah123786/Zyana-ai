@@ -1,7 +1,7 @@
 """Calendar Agent for event management and Google Calendar sync."""
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Dict, Any, Optional
 from pathlib import Path
 
