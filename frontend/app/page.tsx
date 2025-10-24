@@ -33,6 +33,7 @@ import {
   ResponsiveContainer
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
+import { api } from '@/lib/api'
 
 interface Business {
   id: number
@@ -43,59 +44,71 @@ interface Business {
   expenses?: number
 }
 
+interface ChartData {
+  month: string
+  value?: number
+  revenue?: number
+  expenses?: number
+}
+
+interface Activity {
+  id: number | string
+  type: string
+  message: string
+  amount: string
+  time: string
+  color: string
+}
+
 export default function Home() {
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [loading, setLoading] = useState(true)
+  const [revenueData, setRevenueData] = useState<ChartData[]>([])
+  const [businessData, setBusinessData] = useState<ChartData[]>([])
+  const [recentActivities, setRecentActivities] = useState<Activity[]>([])
 
   useEffect(() => {
-    fetchBusinesses()
+    fetchAllData()
   }, [])
 
-  const fetchBusinesses = async () => {
+  const fetchAllData = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      // Fetch all data in parallel
+      const [businessesRes, monthlyTrendRes, businessPerfRes, activitiesRes] = await Promise.all([
+        api.getBusinesses().catch(() => []),
+        api.getMonthlyTrend().catch(() => []),
+        api.getBusinessPerformance().catch(() => []),
+        api.getRecentActivities(undefined, 4).catch(() => [])
+      ])
+
+      setBusinesses(businessesRes || [])
       
-      // Fetch real data from backend
-      const response = await fetch(`${apiUrl}/finance/businesses`)
-      
-      if (response.ok) {
-        const data = await response.json()
-        setBusinesses(data || [])
-        console.log('✅ Loaded businesses from database:', data)
-      } else {
-        console.warn('⚠️ Backend responded with error, showing empty state')
-        setBusinesses([])
+      // Format revenue data for chart
+      if (monthlyTrendRes && monthlyTrendRes.length > 0) {
+        setRevenueData(monthlyTrendRes.map((item: any) => ({
+          month: item.month,
+          value: item.revenue
+        })))
       }
+
+      // Format business performance data
+      if (businessPerfRes && businessPerfRes.length > 0) {
+        setBusinessData(businessPerfRes)
+      }
+
+      // Set activities
+      if (activitiesRes && activitiesRes.length > 0) {
+        setRecentActivities(activitiesRes)
+      }
+
+      console.log('✅ Loaded all dashboard data from database')
     } catch (error) {
-      console.error('❌ Backend not available:', error)
+      console.error('❌ Error fetching dashboard data:', error)
       setBusinesses([])
     } finally {
       setLoading(false)
     }
   }
-
-  // Sample chart data
-  const revenueData = [
-    { month: 'Jan', value: 45000 },
-    { month: 'Feb', value: 52000 },
-    { month: 'Mar', value: 48000 },
-    { month: 'Apr', value: 61000 },
-    { month: 'May', value: 55000 },
-    { month: 'Jun', value: 67000 },
-  ]
-
-  const businessData = [
-    { name: 'Vidify', value: 125000 },
-    { name: 'Milk', value: 85000 },
-    { name: 'Yazman', value: 50000 },
-  ]
-
-  const recentActivities = [
-    { id: 1, type: 'transaction', message: 'Received payment from client', amount: '+PKR 25,000', time: '2 hours ago', color: 'text-green-600' },
-    { id: 2, type: 'expense', message: 'Office supplies purchased', amount: '-PKR 3,500', time: '4 hours ago', color: 'text-red-600' },
-    { id: 3, type: 'event', message: 'Meeting with investor scheduled', amount: '', time: '1 day ago', color: 'text-blue-600' },
-    { id: 4, type: 'goal', message: 'Monthly revenue target achieved', amount: '', time: '2 days ago', color: 'text-purple-600' },
-  ]
 
   const totalBalance = businesses.length > 0 ? businesses.reduce((sum, b) => sum + (b.balance || 0), 0) : 0
   const totalRevenue = businesses.length > 0 ? businesses.reduce((sum, b) => sum + (b.revenue || 0), 0) : 0
@@ -165,28 +178,37 @@ export default function Home() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>Revenue Trend</span>
-                  <Badge variant="success">+15.3%</Badge>
+                  {hasData && <Badge variant="success">Last 6 Months</Badge>}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={revenueData}>
-                    <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
-                    <YAxis stroke="#9ca3af" fontSize={12} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                      formatter={(value: number) => formatCurrency(value)}
-                    />
-                    <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {revenueData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <AreaChart data={revenueData}>
+                      <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
+                      <YAxis stroke="#9ca3af" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        formatter={(value: number) => formatCurrency(value)}
+                      />
+                      <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[250px] flex items-center justify-center text-gray-400">
+                    <div className="text-center">
+                      <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                      <p>No revenue data available</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -198,18 +220,27 @@ export default function Home() {
                 <CardTitle>Business Performance</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={businessData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
-                    <YAxis stroke="#9ca3af" fontSize={12} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                      formatter={(value: number) => formatCurrency(value)}
-                    />
-                    <Bar dataKey="value" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {businessData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={businessData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="name" stroke="#9ca3af" fontSize={12} />
+                      <YAxis stroke="#9ca3af" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        formatter={(value: number) => formatCurrency(value)}
+                      />
+                      <Bar dataKey="value" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[250px] flex items-center justify-center text-gray-400">
+                    <div className="text-center">
+                      <Building2 className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                      <p>No business performance data</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -298,22 +329,31 @@ export default function Home() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {recentActivities.map((activity, index) => (
-                    <div
-                      key={activity.id}
-                      className="border-l-2 border-gray-200 pl-4 pb-4 last:pb-0 animate-fade-in"
-                    >
-                      <p className="text-sm text-gray-900 mb-1">{activity.message}</p>
-                      {activity.amount && (
-                        <p className={`text-sm font-semibold ${activity.color} mb-1`}>
-                          {activity.amount}
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-500">{activity.time}</p>
+                {recentActivities.length > 0 ? (
+                  <div className="space-y-4">
+                    {recentActivities.map((activity, index) => (
+                      <div
+                        key={activity.id}
+                        className="border-l-2 border-gray-200 pl-4 pb-4 last:pb-0 animate-fade-in"
+                      >
+                        <p className="text-sm text-gray-900 mb-1">{activity.message}</p>
+                        {activity.amount && (
+                          <p className={`text-sm font-semibold ${activity.color} mb-1`}>
+                            {activity.amount}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500">{activity.time}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-gray-400 py-8">
+                    <div className="text-center">
+                      <Clock className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                      <p>No recent activities</p>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

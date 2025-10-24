@@ -37,9 +37,10 @@ import {
   ResponsiveContainer
 } from 'recharts'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { api } from '@/lib/api'
 
 interface Transaction {
-  id: string
+  id: string | number
   type: 'income' | 'expense' | 'loan'
   description: string
   amount: number
@@ -48,7 +49,9 @@ interface Transaction {
 }
 
 interface BusinessData {
+  id: number
   name: string
+  slug: string
   balance: number
   revenue: number
   expenses: number
@@ -57,12 +60,23 @@ interface BusinessData {
   transactions: Transaction[]
 }
 
+interface ChartData {
+  month?: string
+  revenue?: number
+  expenses?: number
+  name?: string
+  value?: number
+  color?: string
+}
+
 export default function BusinessDetailPage() {
   const params = useParams()
   const slug = params?.slug as string
   const [business, setBusiness] = useState<BusinessData | null>(null)
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month')
+  const [revenueData, setRevenueData] = useState<ChartData[]>([])
+  const [categoryData, setCategoryData] = useState<ChartData[]>([])
 
   useEffect(() => {
     fetchBusinessData()
@@ -70,28 +84,58 @@ export default function BusinessDetailPage() {
 
   const fetchBusinessData = async () => {
     try {
-      // Sample data - connect to backend later
-      const businessName = slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      // Get business by slug
+      const businessRes = await api.getBusinessBySlug(slug)
       
-      const sampleData: BusinessData = {
-        name: businessName,
-        balance: slug === 'vidify' ? 125000 : slug === 'milk-business' ? 85000 : 50000,
-        revenue: slug === 'vidify' ? 180000 : slug === 'milk-business' ? 120000 : 75000,
-        expenses: slug === 'vidify' ? 55000 : slug === 'milk-business' ? 35000 : 25000,
-        profit: slug === 'vidify' ? 125000 : slug === 'milk-business' ? 85000 : 50000,
-        revenueChange: slug === 'vidify' ? 15.3 : slug === 'milk-business' ? 12.8 : 8.5,
-        transactions: [
-          { id: '1', type: 'income', description: 'Client payment received', amount: 50000, date: '2024-06-15', category: 'Sales' },
-          { id: '2', type: 'expense', description: 'Office supplies', amount: 3500, date: '2024-06-14', category: 'Operations' },
-          { id: '3', type: 'income', description: 'Service delivered', amount: 35000, date: '2024-06-13', category: 'Sales' },
-          { id: '4', type: 'expense', description: 'Marketing campaign', amount: 15000, date: '2024-06-12', category: 'Marketing' },
-          { id: '5', type: 'loan', description: 'Loan to Ahmad', amount: 25000, date: '2024-06-11', category: 'Lending' },
-        ]
+      if (!businessRes) {
+        setBusiness(null)
+        setLoading(false)
+        return
       }
 
-      setBusiness(sampleData)
+      // Fetch business summary and analytics
+      const [summary, transactions, monthlyTrend, categories] = await Promise.all([
+        api.getBusinessSummary(businessRes.id).catch(() => ({ total_income: 0, total_expenses: 0, balance: 0 })),
+        api.getTransactions(businessRes.id).catch(() => []),
+        api.getMonthlyTrend(businessRes.id, 6).catch(() => []),
+        api.getCategoryBreakdown(businessRes.id, 'income').catch(() => [])
+      ])
+
+      // Calculate profit
+      const profit = (summary.total_income || 0) - (summary.total_expenses || 0)
+
+      setBusiness({
+        id: businessRes.id,
+        name: businessRes.name,
+        slug: businessRes.slug,
+        balance: summary.balance || 0,
+        revenue: summary.total_income || 0,
+        expenses: summary.total_expenses || 0,
+        profit: profit,
+        revenueChange: 0, // Can be calculated from historical data
+        transactions: transactions.slice(0, 10).map((t: any) => ({
+          id: t.id,
+          type: t.type,
+          description: t.description || `${t.type} transaction`,
+          amount: t.amount,
+          date: t.date,
+          category: t.category || 'Other'
+        }))
+      })
+
+      // Set chart data
+      if (monthlyTrend && monthlyTrend.length > 0) {
+        setRevenueData(monthlyTrend)
+      }
+
+      if (categories && categories.length > 0) {
+        setCategoryData(categories)
+      }
+
+      console.log('✅ Loaded business data:', businessRes.name)
     } catch (error) {
       console.error('Error fetching business data:', error)
+      setBusiness(null)
     } finally {
       setLoading(false)
     }
@@ -120,23 +164,6 @@ export default function BusinessDetailPage() {
       </div>
     )
   }
-
-  // Chart data
-  const revenueData = [
-    { month: 'Jan', revenue: 45000, expenses: 18000 },
-    { month: 'Feb', revenue: 52000, expenses: 22000 },
-    { month: 'Mar', revenue: 48000, expenses: 19000 },
-    { month: 'Apr', revenue: 61000, expenses: 24000 },
-    { month: 'May', revenue: 55000, expenses: 21000 },
-    { month: 'Jun', revenue: 67000, expenses: 26000 },
-  ]
-
-  const categoryData = [
-    { name: 'Sales', value: 120000, color: '#3b82f6' },
-    { name: 'Operations', value: 35000, color: '#10b981' },
-    { name: 'Marketing', value: 25000, color: '#f59e0b' },
-    { name: 'Other', value: 15000, color: '#8b5cf6' },
-  ]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
@@ -214,30 +241,39 @@ export default function BusinessDetailPage() {
                 <CardTitle>Revenue vs Expenses</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={revenueData}>
-                    <defs>
-                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                      </linearGradient>
-                      <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
-                    <YAxis stroke="#9ca3af" fontSize={12} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                      formatter={(value: number) => formatCurrency(value)}
-                    />
-                    <Legend />
-                    <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fill="url(#colorRevenue)" />
-                    <Area type="monotone" dataKey="expenses" stroke="#f59e0b" strokeWidth={2} fill="url(#colorExpense)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {revenueData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={revenueData}>
+                      <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                        </linearGradient>
+                        <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
+                      <YAxis stroke="#9ca3af" fontSize={12} />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                        formatter={(value: number) => formatCurrency(value)}
+                      />
+                      <Legend />
+                      <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fill="url(#colorRevenue)" />
+                      <Area type="monotone" dataKey="expenses" stroke="#f59e0b" strokeWidth={2} fill="url(#colorExpense)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-gray-400">
+                    <div className="text-center">
+                      <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                      <p>No revenue data available</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -249,25 +285,37 @@ export default function BusinessDetailPage() {
                 <CardTitle>Income by Category</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                      label={(entry) => `${entry.name} (${((entry.value / 195000) * 100).toFixed(0)}%)`}
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                  </PieChart>
-                </ResponsiveContainer>
+                {categoryData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={categoryData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                        label={(entry) => {
+                          const total = categoryData.reduce((sum, item) => sum + (item.value || 0), 0)
+                          return `${entry.name} (${((entry.value / total) * 100).toFixed(0)}%)`
+                        }}
+                      >
+                        {categoryData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-gray-400">
+                    <div className="text-center">
+                      <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                      <p>No category data available</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -280,8 +328,9 @@ export default function BusinessDetailPage() {
               <CardTitle>Recent Transactions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {business.transactions.map((transaction) => (
+              {business.transactions.length > 0 ? (
+                <div className="space-y-4">
+                  {business.transactions.map((transaction) => (
                   <div
                     key={transaction.id}
                     className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
@@ -323,8 +372,16 @@ export default function BusinessDetailPage() {
                       </p>
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-[200px] flex items-center justify-center text-gray-400">
+                  <div className="text-center">
+                    <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                    <p>No transactions yet</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

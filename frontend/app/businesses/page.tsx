@@ -241,38 +241,68 @@ function BusinessModal({
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      console.log('API URL:', apiUrl)
+      console.log('Form data:', formData)
       
       if (business) {
         // Update existing business
-        const response = await fetch(
-          `${apiUrl}/finance/businesses/${business.id}?name=${encodeURIComponent(formData.name)}&type=${encodeURIComponent(formData.type)}&description=${encodeURIComponent(formData.description)}`,
-          { method: 'PUT' }
-        )
+        const url = `${apiUrl}/finance/businesses/${business.id}`
+        const params = new URLSearchParams({
+          name: formData.name,
+          type: formData.type,
+          ...(formData.description && { description: formData.description })
+        })
+        
+        console.log('Updating business:', url + '?' + params.toString())
+        const response = await fetch(`${url}?${params.toString()}`, { 
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+        
+        console.log('Update response status:', response.status)
+        const responseData = await response.json()
+        console.log('Update response data:', responseData)
         
         if (response.ok) {
           alert('✅ Business updated successfully!')
           onSuccess()
         } else {
-          alert('❌ Failed to update business')
+          alert(`❌ Failed to update business: ${responseData.detail || JSON.stringify(responseData)}`)
         }
       } else {
         // Create new business
-        const response = await fetch(
-          `${apiUrl}/finance/businesses?name=${encodeURIComponent(formData.name)}&slug=${encodeURIComponent(formData.slug)}&type=${encodeURIComponent(formData.type)}&description=${encodeURIComponent(formData.description)}`,
-          { method: 'POST' }
-        )
+        const url = `${apiUrl}/finance/businesses`
+        const params = new URLSearchParams({
+          name: formData.name,
+          slug: formData.slug,
+          type: formData.type,
+          ...(formData.description && { description: formData.description })
+        })
+        
+        console.log('Creating business:', url + '?' + params.toString())
+        const response = await fetch(`${url}?${params.toString()}`, { 
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        })
+        
+        console.log('Create response status:', response.status)
+        const responseData = await response.json()
+        console.log('Create response data:', responseData)
         
         if (response.ok) {
           alert('✅ Business created successfully!')
           onSuccess()
         } else {
-          const error = await response.json()
-          alert(`❌ Failed to create business: ${error.detail || 'Unknown error'}`)
+          alert(`❌ Failed to create business: ${responseData.detail || JSON.stringify(responseData)}`)
         }
       }
     } catch (error) {
       console.error('Error saving business:', error)
-      alert('❌ Error saving business')
+      alert(`❌ Error saving business: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setSaving(false)
     }

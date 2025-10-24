@@ -362,7 +362,12 @@ async def list_businesses():
 
 
 @router.post("/businesses", response_model=dict)
-async def create_business(name: str, slug: str, type: str = "general", description: str = None):
+async def create_business(
+    name: str = Query(..., description="Business name"),
+    slug: str = Query(..., description="URL-friendly slug"),
+    type: str = Query(default="general", description="Business type"),
+    description: Optional[str] = Query(default=None, description="Business description")
+):
     """Create a new business.
     
     Args:
@@ -375,28 +380,49 @@ async def create_business(name: str, slug: str, type: str = "general", descripti
         Created business
     """
     try:
-        result = supabase_client.admin.table("businesses").insert({
+        logger.info(f"Creating business: name={name}, slug={slug}, type={type}, description={description}")
+        
+        # Check if slug already exists
+        existing = supabase_client.admin.table("businesses").select("id").eq("slug", slug).execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail=f"Business with slug '{slug}' already exists")
+        
+        insert_data = {
             "name": name,
             "slug": slug,
             "type": type,
-            "description": description
-        }).execute()
+        }
         
-        logger.info(f"Created business: {name}")
+        if description is not None:
+            insert_data["description"] = description
+        
+        result = supabase_client.admin.table("businesses").insert(insert_data).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to create business - no data returned")
+        
+        logger.info(f"Created business: {name} (ID: {result.data[0].get('id')})")
         
         return {
             "success": True,
             "message": f"✅ Created business: {name}",
-            "data": result.data[0] if result.data else {}
+            "data": result.data[0]
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error creating business: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error creating business: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @router.put("/businesses/{business_id}", response_model=dict)
-async def update_business(business_id: int, name: str = None, type: str = None, description: str = None):
+async def update_business(
+    business_id: int,
+    name: Optional[str] = Query(default=None, description="New business name"),
+    type: Optional[str] = Query(default=None, description="New business type"),
+    description: Optional[str] = Query(default=None, description="New description")
+):
     """Update a business.
     
     Args:
@@ -409,6 +435,13 @@ async def update_business(business_id: int, name: str = None, type: str = None, 
         Updated business
     """
     try:
+        logger.info(f"Updating business {business_id}: name={name}, type={type}, description={description}")
+        
+        # Check if business exists
+        existing = supabase_client.admin.table("businesses").select("id").eq("id", business_id).execute()
+        if not existing.data:
+            raise HTTPException(status_code=404, detail=f"Business with ID {business_id} not found")
+        
         update_data = {}
         if name is not None:
             update_data["name"] = name
@@ -417,26 +450,34 @@ async def update_business(business_id: int, name: str = None, type: str = None, 
         if description is not None:
             update_data["description"] = description
         
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields provided to update")
+        
         result = supabase_client.admin.table("businesses").update(
             update_data
         ).eq("id", business_id).execute()
         
-        logger.info(f"Updated business {business_id}")
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to update business - no data returned")
+        
+        logger.info(f"Updated business {business_id} successfully")
         
         return {
             "success": True,
             "message": "✅ Business updated",
-            "data": result.data[0] if result.data else {}
+            "data": result.data[0]
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error updating business: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error updating business: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @router.delete("/businesses/{business_id}", response_model=dict)
 async def delete_business(business_id: int):
-    """Delete a business.
+    """Delete a business and all associated transactions.
     
     Args:
         business_id: Business ID
@@ -445,18 +486,37 @@ async def delete_business(business_id: int):
         Success status
     """
     try:
-        supabase_client.admin.table("businesses").delete().eq("id", business_id).execute()
+        logger.info(f"Deleting business {business_id}")
         
-        logger.info(f"Deleted business {business_id}")
+        # Check if business exists
+        existing = supabase_client.admin.table("businesses").select("id, name").eq("id", business_id).execute()
+        if not existing.data:
+            raise HTTPException(status_code=404, detail=f"Business with ID {business_id} not found")
+        
+        business_name = existing.data[0].get("name")
+        
+        # Delete associated transactions first (if cascade delete is not set up)
+        try:
+            supabase_client.admin.table("transactions").delete().eq("business_id", business_id).execute()
+            logger.info(f"Deleted transactions for business {business_id}")
+        except Exception as e:
+            logger.warning(f"Could not delete transactions: {e}")
+        
+        # Delete the business
+        result = supabase_client.admin.table("businesses").delete().eq("id", business_id).execute()
+        
+        logger.info(f"Deleted business {business_id} ({business_name})")
         
         return {
             "success": True,
-            "message": "✅ Business deleted"
+            "message": f"✅ Business '{business_name}' deleted successfully"
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error deleting business: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error deleting business: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
 @router.get("/summary/{business_id}", response_model=dict)
@@ -509,3 +569,200 @@ async def get_business_summary(
         logger.error(f"Error getting summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/analytics/monthly-trend", response_model=List[dict])
+async def get_monthly_trend(
+    business_id: Optional[int] = None,
+    months: int = Query(default=6, le=24, description="Number of months to include")
+):
+    """Get monthly revenue and expenses trend.
+    
+    Args:
+        business_id: Optional business ID filter
+        months: Number of months to include (default 6, max 24)
+        
+    Returns:
+        List of monthly data with revenue and expenses
+    """
+    try:
+        from datetime import datetime, timedelta
+        from collections import defaultdict
+        import calendar
+        
+        # Calculate date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=months * 30)
+        
+        # Fetch transactions
+        query = supabase_client.admin.table("transactions").select(
+            "type, amount, date"
+        ).gte("date", start_date.isoformat()).lte("date", end_date.isoformat())
+        
+        if business_id:
+            query = query.eq("business_id", business_id)
+        
+        result = query.execute()
+        
+        # Group by month
+        monthly_data = defaultdict(lambda: {"revenue": 0, "expenses": 0})
+        
+        for transaction in result.data:
+            trans_date = datetime.fromisoformat(transaction["date"])
+            month_key = trans_date.strftime("%b")
+            
+            if transaction["type"] == "income":
+                monthly_data[month_key]["revenue"] += transaction["amount"]
+            elif transaction["type"] == "expense":
+                monthly_data[month_key]["expenses"] += transaction["amount"]
+        
+        # Format response
+        response = []
+        for i in range(months):
+            month_date = end_date - timedelta(days=(months - i - 1) * 30)
+            month_name = month_date.strftime("%b")
+            response.append({
+                "month": month_name,
+                "revenue": monthly_data[month_name]["revenue"],
+                "expenses": monthly_data[month_name]["expenses"]
+            })
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting monthly trend: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/by-category", response_model=List[dict])
+async def get_category_breakdown(
+    business_id: Optional[int] = None,
+    type: str = Query(default="income", regex="^(income|expense)$")
+):
+    """Get transaction breakdown by category.
+    
+    Args:
+        business_id: Optional business ID filter
+        type: Transaction type (income or expense)
+        
+    Returns:
+        List of categories with totals
+    """
+    try:
+        query = supabase_client.admin.table("transactions").select(
+            "category, amount"
+        ).eq("type", type)
+        
+        if business_id:
+            query = query.eq("business_id", business_id)
+        
+        result = query.execute()
+        
+        # Group by category
+        from collections import defaultdict
+        category_totals = defaultdict(float)
+        
+        for transaction in result.data:
+            category = transaction.get("category") or "Other"
+            category_totals[category] += transaction["amount"]
+        
+        # Format response
+        colors = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4"]
+        response = []
+        for i, (category, value) in enumerate(category_totals.items()):
+            response.append({
+                "name": category,
+                "value": value,
+                "color": colors[i % len(colors)]
+            })
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting category breakdown: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/recent-activities", response_model=List[dict])
+async def get_recent_activities(
+    business_id: Optional[int] = None,
+    limit: int = Query(default=10, le=50)
+):
+    """Get recent financial activities.
+    
+    Args:
+        business_id: Optional business ID filter
+        limit: Maximum number of activities
+        
+    Returns:
+        List of recent activities
+    """
+    try:
+        from datetime import datetime
+        
+        query = supabase_client.admin.table("transactions").select(
+            "*, businesses(name)"
+        )
+        
+        if business_id:
+            query = query.eq("business_id", business_id)
+        
+        result = query.order("date", desc=True).limit(limit).execute()
+        
+        # Format activities
+        activities = []
+        for transaction in result.data:
+            time_diff = datetime.now() - datetime.fromisoformat(transaction["date"])
+            
+            if time_diff.days == 0:
+                time_ago = f"{time_diff.seconds // 3600} hours ago" if time_diff.seconds >= 3600 else f"{time_diff.seconds // 60} minutes ago"
+            elif time_diff.days == 1:
+                time_ago = "1 day ago"
+            else:
+                time_ago = f"{time_diff.days} days ago"
+            
+            activities.append({
+                "id": transaction["id"],
+                "type": transaction["type"],
+                "message": transaction["description"] or f"{transaction['type'].title()} transaction",
+                "amount": f"{'+'if transaction['type'] == 'income' else '-'}PKR {transaction['amount']:,.0f}",
+                "time": time_ago,
+                "color": "text-green-600" if transaction["type"] == "income" else "text-red-600"
+            })
+        
+        return activities
+        
+    except Exception as e:
+        logger.error(f"Error getting recent activities: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/business-performance", response_model=List[dict])
+async def get_business_performance():
+    """Get performance comparison across all businesses.
+    
+    Returns:
+        List of businesses with their total revenue
+    """
+    try:
+        # Get all businesses
+        businesses = supabase_client.admin.table("businesses").select("*").execute()
+        
+        # Calculate revenue for each business
+        response = []
+        for business in businesses.data:
+            transactions = supabase_client.admin.table("transactions").select(
+                "amount"
+            ).eq("business_id", business["id"]).eq("type", "income").execute()
+            
+            total_revenue = sum(t["amount"] for t in transactions.data)
+            
+            response.append({
+                "name": business["name"],
+                "value": total_revenue
+            })
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting business performance: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
