@@ -1,10 +1,14 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import dynamic from 'next/dynamic'
 import { MessageCircle, X, Send, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
+
+// Load framer-motion only on client side
+const motion = dynamic(() => import('framer-motion').then(mod => mod.motion), { ssr: false })
+const AnimatePresence = dynamic(() => import('framer-motion').then(mod => mod.AnimatePresence), { ssr: false })
 
 interface Message {
   id: string

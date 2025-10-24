@@ -1,8 +1,15 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { Navbar } from '@/components/navbar'
-import { FloatingChatWidget } from '@/components/floating-chat-widget'
+import dynamic from 'next/dynamic'
+
+const Navbar = dynamic(() => import('@/components/navbar').then(mod => ({ default: mod.Navbar })), {
+  ssr: false,
+})
+
+const FloatingChatWidget = dynamic(() => import('@/components/floating-chat-widget').then(mod => ({ default: mod.FloatingChatWidget })), {
+  ssr: false,
+})
 
 const inter = Inter({ subsets: ['latin'] })
 
