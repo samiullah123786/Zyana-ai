@@ -55,27 +55,20 @@ export default function Home() {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       
-      // Try to fetch real data from backend
-      try {
-        const response = await fetch(`${apiUrl}/profile/businesses`)
-        if (response.ok) {
-          const data = await response.json()
-          setBusinesses(data.businesses || [])
-          setLoading(false)
-          return
-        }
-      } catch (apiError) {
-        console.log('Backend not available, using demo data:', apiError)
-      }
+      // Fetch real data from backend
+      const response = await fetch(`${apiUrl}/finance/businesses`)
       
-      // Fallback to demo data if backend is not available
-      setBusinesses([
-        { id: 1, name: 'Vidify', slug: 'vidify', balance: 125000, revenue: 180000, expenses: 55000 },
-        { id: 2, name: 'MilkBusiness', slug: 'milk-business', balance: 85000, revenue: 120000, expenses: 35000 },
-        { id: 3, name: 'Yazman Express', slug: 'yazman-express', balance: 50000, revenue: 75000, expenses: 25000 },
-      ])
+      if (response.ok) {
+        const data = await response.json()
+        setBusinesses(data || [])
+        console.log('✅ Loaded businesses from database:', data)
+      } else {
+        console.warn('⚠️ Backend responded with error, showing empty state')
+        setBusinesses([])
+      }
     } catch (error) {
-      console.error('Error fetching businesses:', error)
+      console.error('❌ Backend not available:', error)
+      setBusinesses([])
     } finally {
       setLoading(false)
     }
@@ -104,9 +97,11 @@ export default function Home() {
     { id: 4, type: 'goal', message: 'Monthly revenue target achieved', amount: '', time: '2 days ago', color: 'text-purple-600' },
   ]
 
-  const totalBalance = businesses.reduce((sum, b) => sum + (b.balance || 0), 0)
-  const totalRevenue = businesses.reduce((sum, b) => sum + (b.revenue || 0), 0)
-  const totalExpenses = businesses.reduce((sum, b) => sum + (b.expenses || 0), 0)
+  const totalBalance = businesses.length > 0 ? businesses.reduce((sum, b) => sum + (b.balance || 0), 0) : 0
+  const totalRevenue = businesses.length > 0 ? businesses.reduce((sum, b) => sum + (b.revenue || 0), 0) : 0
+  const totalExpenses = businesses.length > 0 ? businesses.reduce((sum, b) => sum + (b.expenses || 0), 0) : 0
+  
+  const hasData = businesses.length > 0 && (totalBalance !== 0 || totalRevenue !== 0 || totalExpenses !== 0)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
@@ -132,31 +127,31 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 -mt-16 relative z-10">
           <StatCard
             title="Total Balance"
-            value={formatCurrency(totalBalance)}
-            change={12.5}
+            value={hasData ? formatCurrency(totalBalance) : 'N/A'}
+            change={hasData ? 12.5 : undefined}
             icon={DollarSign}
             gradient="bg-gradient-to-br from-blue-500 to-blue-600"
             delay={0}
           />
           <StatCard
             title="Total Revenue"
-            value={formatCurrency(totalRevenue)}
-            change={18.2}
+            value={hasData ? formatCurrency(totalRevenue) : 'N/A'}
+            change={hasData ? 18.2 : undefined}
             icon={TrendingUp}
             gradient="bg-gradient-to-br from-green-500 to-green-600"
             delay={0.1}
           />
           <StatCard
             title="Total Expenses"
-            value={formatCurrency(totalExpenses)}
-            change={-5.4}
+            value={hasData ? formatCurrency(totalExpenses) : 'N/A'}
+            change={hasData ? -5.4 : undefined}
             icon={Activity}
             gradient="bg-gradient-to-br from-orange-500 to-orange-600"
             delay={0.2}
           />
           <StatCard
             title="Active Businesses"
-            value={businesses.length}
+            value={businesses.length > 0 ? businesses.length : 'N/A'}
             icon={Building2}
             gradient="bg-gradient-to-br from-purple-500 to-purple-600"
             delay={0.3}
@@ -232,6 +227,16 @@ export default function Home() {
                   <div className="text-center py-12">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="mt-4 text-gray-600">Loading your businesses...</p>
+                  </div>
+                ) : businesses.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No Businesses Yet</h3>
+                    <p className="text-gray-600 mb-6">Start by adding your first business to track finances</p>
+                    <Button className="bg-blue-600 hover:bg-blue-700">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Business
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-4">

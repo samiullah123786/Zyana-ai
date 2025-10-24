@@ -251,6 +251,152 @@ async def record_repayment(loan_id: int, amount: float, repayment_date: Optional
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/businesses", response_model=List[dict])
+async def list_businesses():
+    """Get all businesses with their financial summaries.
+    
+    Returns:
+        List of businesses with balance, revenue, expenses
+    """
+    try:
+        # Get all businesses
+        businesses_result = supabase_client.admin.table("businesses").select("*").execute()
+        
+        if not businesses_result.data:
+            return []
+        
+        businesses_with_stats = []
+        
+        for business in businesses_result.data:
+            # Get transactions for this business
+            transactions_result = supabase_client.admin.table("transactions").select(
+                "type, amount"
+            ).eq("business_id", business["id"]).execute()
+            
+            total_income = sum(
+                t["amount"] for t in transactions_result.data if t["type"] == "income"
+            )
+            total_expenses = sum(
+                t["amount"] for t in transactions_result.data if t["type"] == "expense"
+            )
+            
+            businesses_with_stats.append({
+                "id": business["id"],
+                "name": business["name"],
+                "slug": business["slug"],
+                "type": business.get("type"),
+                "description": business.get("description"),
+                "balance": total_income - total_expenses,
+                "revenue": total_income,
+                "expenses": total_expenses,
+                "created_at": business.get("created_at")
+            })
+        
+        return businesses_with_stats
+        
+    except Exception as e:
+        logger.error(f"Error listing businesses: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/businesses", response_model=dict)
+async def create_business(name: str, slug: str, type: str = "general", description: str = None):
+    """Create a new business.
+    
+    Args:
+        name: Business name
+        slug: URL-friendly slug
+        type: Business type
+        description: Business description
+        
+    Returns:
+        Created business
+    """
+    try:
+        result = supabase_client.admin.table("businesses").insert({
+            "name": name,
+            "slug": slug,
+            "type": type,
+            "description": description
+        }).execute()
+        
+        logger.info(f"Created business: {name}")
+        
+        return {
+            "success": True,
+            "message": f"✅ Created business: {name}",
+            "data": result.data[0] if result.data else {}
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating business: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/businesses/{business_id}", response_model=dict)
+async def update_business(business_id: int, name: str = None, type: str = None, description: str = None):
+    """Update a business.
+    
+    Args:
+        business_id: Business ID
+        name: New business name
+        type: New business type
+        description: New description
+        
+    Returns:
+        Updated business
+    """
+    try:
+        update_data = {}
+        if name is not None:
+            update_data["name"] = name
+        if type is not None:
+            update_data["type"] = type
+        if description is not None:
+            update_data["description"] = description
+        
+        result = supabase_client.admin.table("businesses").update(
+            update_data
+        ).eq("id", business_id).execute()
+        
+        logger.info(f"Updated business {business_id}")
+        
+        return {
+            "success": True,
+            "message": "✅ Business updated",
+            "data": result.data[0] if result.data else {}
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating business: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/businesses/{business_id}", response_model=dict)
+async def delete_business(business_id: int):
+    """Delete a business.
+    
+    Args:
+        business_id: Business ID
+        
+    Returns:
+        Success status
+    """
+    try:
+        supabase_client.admin.table("businesses").delete().eq("id", business_id).execute()
+        
+        logger.info(f"Deleted business {business_id}")
+        
+        return {
+            "success": True,
+            "message": "✅ Business deleted"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error deleting business: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/summary/{business_id}", response_model=dict)
 async def get_business_summary(
     business_id: int,
