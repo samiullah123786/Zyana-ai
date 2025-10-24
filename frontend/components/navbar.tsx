@@ -2,9 +2,13 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { Bell, Search, Menu, X, Bot, Settings, LogOut, User } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from './ui/button'
+
+// Load framer-motion only on client side
+const motion = dynamic(() => import('framer-motion').then(mod => mod.motion), { ssr: false })
+const AnimatePresence = dynamic(() => import('framer-motion').then(mod => mod.AnimatePresence), { ssr: false })
 import { Badge } from './ui/badge'
 import { getInitials } from '@/lib/utils'
 
