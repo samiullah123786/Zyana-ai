@@ -131,19 +131,93 @@ class CalendarAgent:
         Returns:
             Response dict
         """
-        # Parse time from description or use defaults
-        start_time = datetime.combine(parsed.date, datetime.min.time().replace(hour=9))
+        # Extract date and time from message
+        event_date, event_time = self._extract_datetime_from_message(parsed.raw_text)
+        
+        # Create datetime objects
+        start_time = datetime.combine(event_date, event_time)
         end_time = start_time + timedelta(hours=1)
+        
+        # Extract title (person name or description)
+        title = parsed.person if parsed.person else "Meeting"
+        if "with" in parsed.raw_text.lower():
+            title = f"Meeting with {parsed.person or 'someone'}"
         
         event = EventCreate(
             user_id=1,  # TODO: Map from auth
-            title=parsed.description or parsed.raw_text,
+            title=title,
             start_time=start_time,
             end_time=end_time,
             description=parsed.raw_text
         )
         
         return await self.create_event(event)
+    
+    def _extract_datetime_from_message(self, message: str) -> tuple:
+        """Extract date and time from calendar message.
+        
+        Args:
+            message: User message
+            
+        Returns:
+            Tuple of (date, time)
+        """
+        from datetime import time as datetime_time
+        import re
+        
+        message_lower = message.lower()
+        today = date.today()
+        
+        # Extract date
+        event_date = today
+        if "tomorrow" in message_lower:
+            event_date = today + timedelta(days=1)
+        elif "today" in message_lower:
+            event_date = today
+        elif "yesterday" in message_lower:
+            event_date = today - timedelta(days=1)
+        elif any(day in message_lower for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']):
+            # Simple day extraction (could be enhanced)
+            event_date = today + timedelta(days=1)
+        
+        # Extract time - look for patterns like "10am", "3pm", "10:30am", "15:00"
+        time_patterns = [
+            r'(\d{1,2}):(\d{2})\s*(am|pm)',  # 10:30am
+            r'(\d{1,2})\s*(am|pm)',           # 10am
+            r'(\d{1,2}):(\d{2})',             # 15:00
+        ]
+        
+        event_time = datetime_time(hour=9, minute=0)  # Default 9am
+        
+        for pattern in time_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                if len(match.groups()) == 3:  # With minutes and am/pm
+                    hour = int(match.group(1))
+                    minute = int(match.group(2))
+                    period = match.group(3)
+                    if period == 'pm' and hour < 12:
+                        hour += 12
+                    elif period == 'am' and hour == 12:
+                        hour = 0
+                    event_time = datetime_time(hour=hour, minute=minute)
+                    break
+                elif len(match.groups()) == 2 and match.group(2) in ['am', 'pm']:  # Just hour with am/pm
+                    hour = int(match.group(1))
+                    period = match.group(2)
+                    if period == 'pm' and hour < 12:
+                        hour += 12
+                    elif period == 'am' and hour == 12:
+                        hour = 0
+                    event_time = datetime_time(hour=hour, minute=0)
+                    break
+                elif len(match.groups()) == 2:  # 24-hour format
+                    hour = int(match.group(1))
+                    minute = int(match.group(2))
+                    event_time = datetime_time(hour=hour, minute=minute)
+                    break
+        
+        return event_date, event_time
     
     async def create_event(self, event: EventCreate) -> Dict[str, Any]:
         """Create calendar event in DB and Google Calendar.
