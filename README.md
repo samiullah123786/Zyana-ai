@@ -1,305 +1,277 @@
-# Zyana - Personal AI Assistant
+# 🤖 Zyana AI - Your Personal Multi-Agent Assistant
 
-Zyana is a message-first, multi-agent AI assistant designed to help manage finances, calendar events, video processing, communications, and personal memory. Built with cutting-edge AI technologies and modern development practices.
+Zyana is an intelligent AI assistant that helps you manage finances across multiple businesses, organize calendar events, and search through your personal memory - all through natural conversation on Telegram or a beautiful web dashboard.
 
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     USER INTERFACES                         │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────────────┐     │
-│  │ Telegram │  │  Next.js │  │  Electron Desktop    │     │
-│  │   Bot    │  │ Dashboard│  │      Agent           │     │
-│  └─────┬────┘  └────┬─────┘  └──────────┬───────────┘     │
-└────────┼────────────┼────────────────────┼─────────────────┘
-         │            │                    │
-         └────────────┼────────────────────┘
-                      ▼
-         ┌────────────────────────────┐
-         │    FastAPI Backend         │
-         │  ┌──────────────────────┐  │
-         │  │  Main Core Agent     │  │
-         │  │    (Router)          │  │
-         │  └──────────┬───────────┘  │
-         │             │              │
-         │  ┌──────────┴───────────┐  │
-         │  │  Specialized Agents  │  │
-         │  ├──────────────────────┤  │
-         │  │ • Finance Agent      │  │
-         │  │ • Calendar Agent     │  │
-         │  │ • Memory Agent       │  │
-         │  │ • Video Agent        │  │
-         │  │ • Habit Learner      │  │
-         │  └──────────────────────┘  │
-         └────────────┬───────────────┘
-                      │
-         ┌────────────┴───────────────┐
-         │                            │
-         ▼                            ▼
-┌─────────────────┐          ┌──────────────────┐
-│   Fal AI API    │          │   Data Layer     │
-│                 │          │                  │
-│ • GPT-5 Chat    │          │ • Supabase/PG    │
-│ • Embeddings    │          │ • Qdrant Vectors │
-│ • Function Call │          │ • Redis Cache    │
-└─────────────────┘          └──────────────────┘
-```
-
-## Features
-
-### 🤖 Multi-Agent System
-- **Finance Agent**: Track transactions, loans, repayments, and generate P&L reports across multiple businesses
-- **Calendar Agent**: Bi-directional sync with Google Calendar, intelligent event creation
-- **Memory Agent**: Semantic search across all your data using vector embeddings
-- **Video Agent**: Automated video processing and metadata extraction
-- **Habit Learner**: Learns your preferences and patterns for smarter defaults
-
-### 💬 Natural Language Interface
-- Message via Telegram in free-form text
-- Zyana parses your intent and extracts structured data
-- Conversational follow-ups for missing information
-- Multi-language support (English, Urdu, Saraiki)
-
-### 📊 Business Management
-- Multi-business support (Vidify, MilkBusiness, Yazman Express, etc.)
-- Transaction tracking with categories and tags
-- Loan management with repayment tracking
-- Goals and target tracking
-- Automated weekly/monthly reports
-
-### 🧠 Intelligent Memory
-- Vector-based semantic search using Qdrant
-- Nightly summarization of activities
-- Long-term habit and preference learning
-- Context-aware responses using past interactions
-
-### 🔐 Security & Privacy
-- Row-level security (RLS) in Supabase
-- Whitelisted command execution for Desktop Agent
-- JWT-based authentication
-- Secure credential management
-
-## Tech Stack
-
-### Backend
-- **FastAPI** - High-performance Python web framework
-- **Fal AI** - GPT-5 for reasoning and embeddings
-- **Supabase** - PostgreSQL database with real-time capabilities
-- **Qdrant** - Vector database for semantic search
-- **Redis** - Session cache and job queue
-- **RQ** - Background job processing
-
-### Frontend
-- **Next.js 14** - React framework with TypeScript
-- **Tailwind CSS** - Utility-first CSS framework
-- **shadcn/ui** - Beautiful UI components
-- **Supabase Auth** - Authentication and authorization
-
-### Desktop Agent
-- **Electron** - Cross-platform desktop application
-- **TypeScript** - Type-safe development
-- **FFmpeg** - Video processing
-
-### DevOps
-- **Docker Compose** - Local development environment
-- **GitHub Actions** - CI/CD pipeline
-- **Sentry** - Error tracking and monitoring
-
-## Getting Started
-
-### Prerequisites
-- Python 3.11+
-- Node.js 18+
-- Docker & Docker Compose
-- Git
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd zyana-ai
-   ```
-
-2. **Configure environment variables**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your credentials
-   ```
-
-3. **Start infrastructure services**
-   ```bash
-   docker-compose -f docker-compose.dev.yml up -d
-   ```
-
-4. **Setup backend**
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   python -m alembic upgrade head
-   uvicorn main:app --reload
-   ```
-
-5. **Setup frontend**
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-6. **Setup desktop agent** (optional)
-   ```bash
-   cd desktop-agent
-   npm install
-   npm run dev
-   ```
-
-### Configuration
-
-#### Telegram Bot
-1. Create a bot via [@BotFather](https://t.me/botfather)
-2. Add token to `.env` as `TELEGRAM_BOT_TOKEN`
-3. Set webhook: `POST https://your-backend-url/webhook/message`
-
-#### Google Calendar
-1. Create OAuth credentials in Google Cloud Console
-2. Add client ID and secret to `.env`
-3. Authorize via `/auth/google` endpoint
-
-#### Fal AI
-1. Get API key from [fal.ai](https://fal.ai)
-2. Add to `.env` as `FAL_API_KEY`
-
-#### Supabase
-1. Create project at [supabase.com](https://supabase.com)
-2. Add URL and keys to `.env`
-3. Run migrations from `backend/migrations/`
-
-## Project Structure
-
-```
-zyana-ai/
-├── backend/                 # FastAPI backend
-│   ├── agents/             # Specialized agent implementations
-│   ├── clients/            # External API clients (Fal, Google, etc.)
-│   ├── migrations/         # Database migrations
-│   ├── models/             # Pydantic schemas
-│   ├── prompts/            # AI prompts and templates
-│   ├── routers/            # API endpoints
-│   ├── services/           # Business logic
-│   ├── workers/            # Background jobs
-│   └── main.py             # Application entry point
-├── frontend/               # Next.js dashboard
-│   ├── app/                # App router pages
-│   ├── components/         # React components
-│   ├── lib/                # Utilities and API client
-│   └── public/             # Static assets
-├── desktop-agent/          # Electron desktop app
-│   ├── src/
-│   │   ├── main/          # Main process
-│   │   └── renderer/      # Renderer process (UI)
-│   └── allowed_commands.json
-├── infra/                  # Infrastructure configs
-│   └── docker-compose.dev.yml
-├── docs/                   # Documentation
-│   ├── architecture.md
-│   ├── api.md
-│   ├── deployment.md
-│   └── onboarding.md
-├── scripts/                # Utility scripts
-└── config/                 # Configuration files
-```
-
-## Usage Examples
-
-### Finance Tracking
-```
-You: "I lent Ahmad Rs 10,000 from Vidify yesterday"
-Zyana: "✅ Recorded Rs 10,000 loan to Ahmad for Vidify on 2025-10-20. Anything else?"
-```
-
-### Calendar Events
-```
-You: "Schedule meeting with team tomorrow at 3pm"
-Zyana: "✅ Created 'Meeting with team' on 2025-10-22 at 3:00 PM. Google Calendar updated."
-```
-
-### Memory Search
-```
-You: "When did I last pay Ahmad?"
-Zyana: "You paid Ahmad Rs 5,000 from Vidify on 2025-10-15 (repayment). Previous loan was Rs 10,000 on 2025-10-10."
-```
-
-## Development
-
-### Running Tests
-```bash
-cd backend
-pytest tests/ --cov=. --cov-report=html
-```
-
-### Code Quality
-```bash
-# Format code
-black backend/ --line-length 100
-
-# Lint
-flake8 backend/ --max-line-length 100
-
-# Type check
-mypy backend/
-```
-
-### Database Migrations
-```bash
-# Create migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
-alembic upgrade head
-
-# Rollback
-alembic downgrade -1
-```
-
-## Deployment
-
-See [docs/deployment.md](docs/deployment.md) for detailed deployment instructions.
-
-### Quick Deploy
-- **Backend**: Railway, Render, or VPS with Docker
-- **Frontend**: Vercel or Netlify
-- **Database**: Supabase (managed) or self-hosted PostgreSQL
-
-## Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| FAL_API_KEY | Fal AI API key | Yes |
-| TELEGRAM_BOT_TOKEN | Telegram bot token | Yes |
-| GOOGLE_CLIENT_ID | Google OAuth client ID | Yes |
-| GOOGLE_CLIENT_SECRET | Google OAuth client secret | Yes |
-| SUPABASE_URL | Supabase project URL | Yes |
-| SUPABASE_SERVICE_KEY | Supabase service role key | Yes |
-| QDRANT_URL | Qdrant instance URL | Yes |
-| REDIS_URL | Redis connection URL | Yes |
-| JWT_SECRET | Secret for JWT signing | Yes |
-
-## Contributing
-
-This is a personal project, but suggestions and feedback are welcome!
-
-## License
-
-Private - All Rights Reserved
-
-## Support
-
-For questions or issues, please check the [documentation](docs/) or create an issue.
+![Status](https://img.shields.io/badge/status-production-brightgreen)
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
-Built with ❤️ by Sami
+## ✨ Features
 
+- 💰 **Multi-Business Finance Tracking** - Track income, expenses, and loans across different businesses
+- 📅 **Smart Calendar Management** - Sync with Google Calendar, get reminders
+- 🧠 **Personal Memory Search** - Vector-based search through your conversations and notes
+- 🤖 **Multi-Agent System** - Specialized agents for different tasks
+- 💬 **Telegram Integration** - Natural conversation interface
+- 🎨 **Web Dashboard** - Beautiful Next.js frontend for visualization
+- 🔐 **Secure Authentication** - Supabase auth with JWT tokens
+
+---
+
+## 🚀 Quick Start - Deploy in 30 Minutes
+
+Deploy Zyana completely FREE to the cloud:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/zyana.git
+cd zyana
+
+# 2. Follow the deployment guide
+# See QUICK_DEPLOY.md for 30-minute deployment
+# Or DEPLOYMENT_GUIDE.md for detailed instructions
+```
+
+### ⚡ Deploy To:
+- **Backend** → [Render.com](https://render.com) (Free tier)
+- **Frontend** → [Vercel](https://vercel.com) (Free tier)
+- **Database** → [Supabase](https://supabase.com) (Free tier)
+- **Vector DB** → [Qdrant Cloud](https://cloud.qdrant.io) (Free tier)
+- **Redis** → [Upstash](https://upstash.com) (Free tier)
+
+**Total Cost: $0/month** 🎉
+
+[📖 **Read Deployment Guide**](DEPLOYMENT_GUIDE.md) | [⚡ **Quick Deploy**](QUICK_DEPLOY.md) | [✅ **Checklist**](DEPLOYMENT_CHECKLIST.md)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────┐
+│   User/Telegram │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐      ┌──────────────────┐
+│  Frontend       │      │   Backend        │
+│  Next.js        │─────▶│   FastAPI        │
+│  (Vercel)       │      │   (Render)       │
+└─────────────────┘      └────────┬─────────┘
+                                  │
+                    ┌─────────────┼─────────────┐
+                    │             │             │
+                    ▼             ▼             ▼
+            ┌───────────┐  ┌──────────┐  ┌──────────┐
+            │ Supabase  │  │  Qdrant  │  │  Upstash │
+            │ PostgreSQL│  │  Vectors │  │   Redis  │
+            └───────────┘  └──────────┘  └──────────┘
+```
+
+### Key Components:
+
+- **Frontend**: Next.js 14 with TypeScript, Tailwind CSS
+- **Backend**: FastAPI (Python 3.11) with async support
+- **Database**: Supabase (PostgreSQL) with RLS
+- **Vector DB**: Qdrant for semantic search
+- **Queue**: Redis (Upstash) for background jobs
+- **Auth**: Supabase Auth with JWT
+- **Agents**: Finance, Calendar, Memory, Habit Learner
+
+---
+
+## 💻 Local Development
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- Git
+
+### Backend Setup
+
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Copy environment variables
+cp .env.example .env
+# Edit .env with your values
+
+# Run migrations (in Supabase SQL Editor)
+# Copy and run: migrations/001_initial_schema.sql
+
+# Start server
+uvicorn main:app --reload
+```
+
+Backend runs on: `http://localhost:8000`
+
+### Frontend Setup
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Copy environment variables
+cp .env.example .env.local
+# Edit .env.local with your values
+
+# Start dev server
+npm run dev
+```
+
+Frontend runs on: `http://localhost:3000`
+
+---
+
+## 📱 Using Zyana
+
+### Telegram Bot
+
+1. Get your bot token from [@BotFather](https://t.me/botfather)
+2. Set up webhook (see deployment guide)
+3. Start chatting!
+
+**Example commands:**
+```
+I received 50k from milk sales today
+Lent Ahmad Rs 10,000 from Vidify
+Meeting with team tomorrow at 3pm
+How much did I lend to Ahmad?
+```
+
+### Web Dashboard
+
+Visit your deployed frontend or `http://localhost:3000` for:
+- 📊 Financial overview across all businesses
+- 📈 Transaction history and analytics
+- 📅 Calendar view
+- 🧠 Memory search
+- ⚙️ Settings and configuration
+
+---
+
+## 🔧 Configuration
+
+### Environment Variables
+
+See [`ENV_SETUP.md`](ENV_SETUP.md) for complete guide on all environment variables.
+
+**Required:**
+- `TELEGRAM_BOT_TOKEN` - Your Telegram bot token
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_ANON_KEY` - Supabase anon key
+- `FAL_API_KEY` - Fal.ai API key
+- `JWT_SECRET` - Random secret for JWT tokens
+
+**Optional:**
+- `GOOGLE_CLIENT_ID` - For Google Calendar sync
+- `QDRANT_URL` - Vector database URL
+- `REDIS_URL` - Redis connection string
+
+---
+
+## 📖 Documentation
+
+- [**Deployment Guide**](DEPLOYMENT_GUIDE.md) - Complete deployment instructions
+- [**Quick Deploy**](QUICK_DEPLOY.md) - 30-minute deployment guide
+- [**Deployment Checklist**](DEPLOYMENT_CHECKLIST.md) - Step-by-step checklist
+- [**Environment Setup**](ENV_SETUP.md) - All environment variables explained
+- [**Architecture**](docs/architecture.md) - System architecture details
+- [**API Documentation**](docs/api.md) - Backend API reference
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+- **FastAPI** - Modern Python web framework
+- **Supabase** - PostgreSQL database & auth
+- **Qdrant** - Vector database for semantic search
+- **Redis** - Job queue and caching
+- **Python-telegram-bot** - Telegram integration
+- **Google Calendar API** - Calendar sync
+
+### Frontend
+- **Next.js 14** - React framework with App Router
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **Recharts** - Data visualization
+- **Supabase JS** - Client library
+
+### Infrastructure
+- **Render.com** - Backend hosting
+- **Vercel** - Frontend hosting
+- **Supabase** - Database & auth
+- **Qdrant Cloud** - Vector database
+- **Upstash** - Redis hosting
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+## 🙏 Acknowledgments
+
+- [FastAPI](https://fastapi.tiangolo.com/) - Backend framework
+- [Next.js](https://nextjs.org/) - Frontend framework
+- [Supabase](https://supabase.com/) - Backend as a Service
+- [Render](https://render.com/) - Hosting platform
+- [Vercel](https://vercel.com/) - Frontend hosting
+
+---
+
+## 📞 Support
+
+- 📧 Email: support@zyana.ai
+- 💬 Telegram: [@zyana_support](https://t.me/zyana_support)
+- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/zyana/issues)
+
+---
+
+## 🚀 What's Next?
+
+- [ ] Desktop agent with system automation
+- [ ] Voice interface
+- [ ] Mobile app
+- [ ] More AI agents (health, travel, etc.)
+- [ ] Team collaboration features
+- [ ] Advanced analytics
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the Zyana Team**
+
+[Website](https://zyana.ai) • [Documentation](./docs) • [Telegram](https://t.me/zyana_bot)
+
+⭐ Star us on GitHub — it helps!
+
+</div>
