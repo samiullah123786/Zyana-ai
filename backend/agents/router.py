@@ -6,7 +6,6 @@ from models.schemas import ParsedMessage, AgentResponse
 from agents.finance import finance_agent
 from agents.calendar import calendar_agent
 from agents.habit_learner import habit_learner
-from clients.fal_client import fal_client
 from services.prompts import get_prompt
 from services.intelligence_engine import intelligence_engine
 
@@ -260,7 +259,9 @@ class MainCoreAgent:
         }
     
     async def _handle_other(self, parsed: ParsedMessage, user_id: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Handle other intents using Fal AI with enhanced context.
+        """Handle other intents with helpful response.
+        
+        PRODUCTION-GRADE: No external AI calls, instant response.
         
         Args:
             parsed: Parsed message
@@ -270,35 +271,50 @@ class MainCoreAgent:
         Returns:
             Response dict
         """
-        # Build context-aware prompt
-        context_info = ""
-        if context and context.get("related_memories"):
-            memories = context["related_memories"][:3]
-            if memories:
-                context_info = "\n\nRelated context from memory:\n" + "\n".join(
-                    [f"- {m.get('content', '')}" for m in memories]
-                )
+        # Provide helpful, instant response
+        message = parsed.raw_text.lower()
         
-        enhanced_prompt = parsed.raw_text + context_info
-        
-        # Use Fal to generate a helpful response
-        try:
-            response = await fal_client.chat_simple(
-                prompt=enhanced_prompt,
-                system_prompt=self.system_prompt + "\n\nYou are JARVIS - an intelligent, proactive assistant. Be helpful, concise, and anticipate user needs.",
-                temperature=0.7
+        # Check for common patterns
+        if any(word in message for word in ['hi', 'hello', 'hey', 'greetings']):
+            response = (
+                "👋 Hello! I'm Zyana, your AI assistant.\n\n"
+                "I can help you:\n"
+                "• Track finances: 'I lent Ahmad Rs 10,000 from Vidify'\n"
+                "• Check status: /status\n"
+                "• View insights: /insights\n"
+                "• Book calendar: 'Meeting tomorrow at 3pm'\n\n"
+                "How can I assist you?"
             )
-            
-            return {
-                "success": True,
-                "message": response or "I'm here to help! What would you like to know?"
-            }
-        except Exception as e:
-            logger.error(f"Error in AI response: {e}")
-            return {
-                "success": True,
-                "message": "I'm here to help! Try asking about your finances, calendar, or business insights."
-            }
+        elif any(word in message for word in ['thanks', 'thank you', 'thx']):
+            response = "You're welcome! 😊 Let me know if you need anything else."
+        elif any(word in message for word in ['help', 'what can you do', 'commands']):
+            response = (
+                "🤖 I can help with:\n\n"
+                "💰 Finance:\n"
+                "• 'I lent Ahmad Rs 10,000'\n"
+                "• 'Received 50k from sales'\n"
+                "• 'Paid 3000 for software'\n\n"
+                "📊 Reports:\n"
+                "• /status - Check balances\n"
+                "• /insights - AI analysis\n\n"
+                "📅 Calendar:\n"
+                "• 'Meeting tomorrow at 3pm'\n"
+                "• 'Call with client Friday 10am'\n\n"
+                "Just talk to me naturally!"
+            )
+        else:
+            response = (
+                "I'm here to help! I can track your finances, manage calendar events, and provide insights.\n\n"
+                "Try:\n"
+                "• 'I gave someone Rs 5000'\n"
+                "• /insights for AI analysis\n"
+                "• /help for commands"
+            )
+        
+        return {
+            "success": True,
+            "message": response
+        }
 
 
 # Global instance

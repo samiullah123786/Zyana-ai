@@ -42,6 +42,15 @@ class RegexParser:
         # Extract date
         extracted_date = self._extract_date(message_lower)
         
+        # Handle date field based on intent
+        if intent == "calendar":
+            # Calendar events don't use the date field (they use event_time)
+            extracted_date = None
+        elif intent in ["transaction", "loan", "repayment"]:
+            # Financial transactions: only set date if explicitly mentioned
+            if not any(word in message_lower for word in ['today', 'yesterday', 'tomorrow', 'last week', 'this week']):
+                extracted_date = None
+        
         # Determine missing fields
         missing_fields = []
         if intent in ["transaction", "loan"] and not business:
@@ -59,7 +68,7 @@ class RegexParser:
             "currency": currency or "PKR",
             "category": self._extract_category(message_lower, trans_type),
             "person": person,
-            "date": extracted_date,  # Keep as date object, not isoformat
+            "date": extracted_date,  # Can be date object or None
             "description": message,
             "tags": self._extract_tags(message_lower, intent),
             "raw_text": message,
