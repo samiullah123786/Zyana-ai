@@ -61,12 +61,39 @@ class DateTimeParser:
         parser_settings['RELATIVE_BASE'] = reference_time
         
         try:
-            # Parse with dateparser
+            # Try to parse the full text first
             parsed_dt = dateparser.parse(
                 text,
                 settings=parser_settings,
                 languages=['en']
             )
+            
+            # If that fails, try to extract just the time part
+            if parsed_dt is None:
+                # Common patterns: "tomorrow at 11:00am", "next Friday at 3pm", etc.
+                import re
+                
+                # Try to extract time expressions
+                time_patterns = [
+                    r'(tomorrow|today|yesterday)\s+at\s+(\d{1,2}:\d{2}\s*[ap]m|\d{1,2}\s*[ap]m)',
+                    r'(next\s+\w+)\s+at\s+(\d{1,2}:\d{2}\s*[ap]m|\d{1,2}\s*[ap]m)',
+                    r'on\s+(\w+)\s+at\s+(\d{1,2}:\d{2}\s*[ap]m|\d{1,2}\s*[ap]m)',
+                    r'at\s+(\d{1,2}:\d{2}\s*[ap]m|\d{1,2}\s*[ap]m)',
+                ]
+                
+                for pattern in time_patterns:
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    if match:
+                        # Reconstruct a cleaner datetime string
+                        if len(match.groups()) == 2:
+                            clean_text = f"{match.group(1)} {match.group(2)}"
+                        else:
+                            clean_text = match.group(1)
+                        
+                        logger.info(f"🔍 Extracted time expression: '{clean_text}' from '{text}'")
+                        parsed_dt = dateparser.parse(clean_text, settings=parser_settings, languages=['en'])
+                        if parsed_dt:
+                            break
             
             if parsed_dt is None:
                 logger.warning(f"❌ Failed to parse datetime from: {text}")

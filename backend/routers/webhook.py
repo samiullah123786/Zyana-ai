@@ -6,7 +6,8 @@ from datetime import datetime
 
 from models.schemas import WebhookMessage, AgentResponse
 from services.parser import message_parser
-from agents.router import main_agent
+from agents.router import main_agent  # OLD router (legacy)
+from agents.intent_router import intent_router  # NEW RAG-enabled router
 from services.telegram_bot import send_telegram_message
 
 logger = logging.getLogger(__name__)
@@ -181,16 +182,42 @@ async def receive_message(
                 parsed.intent
             )
         
-        # Route to appropriate agent
-        agent_response = await main_agent.route(parsed, user_id=webhook_msg.user_id)
+        # Route to appropriate agent using NEW RAG-enabled intent router
+        # The new intent_router automatically includes:
+        # - RAG memory retrieval from Qdrant
+        # - Mirror Mode style transformation
+        # - User preferences and context
+        intent_result = await intent_router.route_intent(
+            message=webhook_msg.message,
+            user_id=webhook_msg.user_id
+        )
         
-        # Apply mirror mode style transformation
-        response_message = agent_response.message
-        if await mirror_mode_service.is_mirror_mode_enabled(user_id_int):
-            response_message = await mirror_mode_service.apply_style_transformation(
-                response_message,
-                user_id_int
-            )
+        # Extract response (already includes Mirror Mode transformation)
+        response_message = intent_result.get('response', 'I received your message!')
+        
+        # If clarification is needed, the response will contain the clarification question
+        if intent_result.get('needs_clarification'):
+            logger.info(f"📝 Clarification needed: {intent_result.get('clarification_question')}")
+        
+        # Map intent to agent for actual execution
+        if intent_result['intent'] in ['schedule_meeting', 'reschedule_meeting', 'set_reminder']:
+            # Calendar agent - use create_event_from_intent
+            if not intent_result.get('needs_clarification'):
+                from agents.calendar import calendar_agent
+                event_result = await calendar_agent.create_event_from_intent(
+                    intent_result,
+                    webhook_msg.user_id
+                )
+                if event_result.get('success'):
+                    response_message = event_result.get('message', response_message)
+        elif intent_result['intent'] in ['record_expense', 'record_income', 'loan']:
+            # Finance agent
+            agent_response = await main_agent.route(parsed, user_id=webhook_msg.user_id)
+            response_message = agent_response.message
+        elif intent_result['intent'] != 'chat':
+            # Other intents - use old router for now
+            agent_response = await main_agent.route(parsed, user_id=webhook_msg.user_id)
+            response_message = agent_response.message
         
         # Check for break suggestion
         break_suggestion = await routine_optimizer.suggest_break(user_id_int)

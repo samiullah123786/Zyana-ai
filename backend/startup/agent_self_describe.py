@@ -85,9 +85,9 @@ class AgentSelfDescribe:
             if (agents_dir / "routine_optimizer.py").exists():
                 capabilities.append("Optimize daily routines and work sessions")
             
-            # Intent router
+            # Intent router (NEW RAG-enabled)
             if (agents_dir / "intent_router.py").exists():
-                capabilities.append("Intelligent intent classification with GPT-5")
+                capabilities.append("RAG-enhanced intent routing with memory retrieval and context-aware responses")
         
         # Check services directory
         services_dir = Path(__file__).parent.parent / "services"
@@ -116,6 +116,14 @@ class AgentSelfDescribe:
             # Datetime parsing
             if (services_dir / "datetime_parser.py").exists():
                 capabilities.append("Parse natural language dates and times robustly")
+            
+            # RAG service
+            if (services_dir / "rag.py").exists():
+                capabilities.append("Retrieval-Augmented Generation for context-aware responses")
+            
+            # Embeddings service
+            if (services_dir / "embeddings.py").exists():
+                capabilities.append("Generate semantic embeddings with OpenAI/Fal AI")
         
         # Check memory directory
         memory_dir = Path(__file__).parent.parent / "memory"
@@ -154,21 +162,31 @@ class AgentSelfDescribe:
                         "features": [
                             "calendar_intelligence",
                             "multi_turn_clarification",
+                            "rag_memory_retrieval",
                             "vector_memory",
                             "voice_transcription",
-                            "financial_tracking"
+                            "financial_tracking",
+                            "invoice_management",
+                            "client_management",
+                            "mirror_mode",
+                            "routine_optimization",
+                            "notification_scheduling",
+                            "feedback_collection",
+                            "semantic_embeddings"
                         ],
                         "ai_models": [
                             "Fal AI GPT-5",
                             "Groq Whisper Turbo",
-                            "OpenAI Embeddings"
+                            "OpenAI text-embedding-3-small"
                         ],
                         "integrations": [
                             "Google Calendar",
-                            "Telegram",
-                            "Supabase",
+                            "Telegram Bot API",
+                            "Supabase PostgreSQL",
                             "Qdrant Vector DB",
-                            "Redis Sessions"
+                            "Redis Cloud Sessions",
+                            "OpenAI API",
+                            "Groq API"
                         ]
                     }
                 }).eq("id", existing.data[0]["id"]).execute()
@@ -187,21 +205,31 @@ class AgentSelfDescribe:
                         "features": [
                             "calendar_intelligence",
                             "multi_turn_clarification",
+                            "rag_memory_retrieval",
                             "vector_memory",
                             "voice_transcription",
-                            "financial_tracking"
+                            "financial_tracking",
+                            "invoice_management",
+                            "client_management",
+                            "mirror_mode",
+                            "routine_optimization",
+                            "notification_scheduling",
+                            "feedback_collection",
+                            "semantic_embeddings"
                         ],
                         "ai_models": [
                             "Fal AI GPT-5",
                             "Groq Whisper Turbo",
-                            "OpenAI Embeddings"
+                            "OpenAI text-embedding-3-small"
                         ],
                         "integrations": [
                             "Google Calendar",
-                            "Telegram",
-                            "Supabase",
+                            "Telegram Bot API",
+                            "Supabase PostgreSQL",
                             "Qdrant Vector DB",
-                            "Redis Sessions"
+                            "Redis Cloud Sessions",
+                            "OpenAI API",
+                            "Groq API"
                         ]
                     }
                 }).execute()
