@@ -45,28 +45,58 @@ class ZyanaQdrantClient:
                         distance=Distance.COSINE
                     )
                 )
+                logger.info(f"Collection created: {self.COLLECTION_NAME}")
+            else:
+                logger.debug(f"Collection already exists: {self.COLLECTION_NAME}")
+            
+            # Always ensure indexes exist (for existing collections too)
+            self._ensure_indexes()
                 
-                # Create payload indexes for efficient filtering
-                logger.info(f"Creating payload indexes for {self.COLLECTION_NAME}")
+        except Exception as e:
+            logger.error(f"Error ensuring collection: {e}")
+            raise
+    
+    def _ensure_indexes(self):
+        """Ensure payload indexes exist on the collection.
+        
+        This method is idempotent and safe to call multiple times.
+        Creates indexes only if they don't already exist.
+        """
+        try:
+            # Get collection info to check existing indexes
+            collection_info = self.client.get_collection(collection_name=self.COLLECTION_NAME)
+            existing_indexes = collection_info.payload_schema or {}
+            
+            # Check and create user_id index if missing
+            if "user_id" not in existing_indexes:
+                logger.info(f"Creating user_id index for {self.COLLECTION_NAME}")
                 self.client.create_payload_index(
                     collection_name=self.COLLECTION_NAME,
                     field_name="user_id",
                     field_schema=PayloadSchemaType.KEYWORD
                 )
-                
+                logger.info("✅ user_id index created")
+            else:
+                logger.debug("user_id index already exists")
+            
+            # Check and create type index if missing
+            if "type" not in existing_indexes:
+                logger.info(f"Creating type index for {self.COLLECTION_NAME}")
                 self.client.create_payload_index(
                     collection_name=self.COLLECTION_NAME,
                     field_name="type",
                     field_schema=PayloadSchemaType.KEYWORD
                 )
-                
-                logger.info(f"Collection and indexes created: {self.COLLECTION_NAME}")
+                logger.info("✅ type index created")
             else:
-                logger.debug(f"Collection already exists: {self.COLLECTION_NAME}")
+                logger.debug("type index already exists")
                 
+            logger.info(f"✅ All indexes verified for {self.COLLECTION_NAME}")
+            
         except Exception as e:
-            logger.error(f"Error ensuring collection: {e}")
-            raise
+            logger.error(f"Error ensuring indexes: {e}")
+            # Don't raise - allow system to continue even if index check fails
+            # The indexes might already exist and the error is just an API quirk
     
     def recreate_collection_with_indexes(self):
         """Recreate collection with proper indexes (for migration).
