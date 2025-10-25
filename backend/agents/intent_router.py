@@ -313,8 +313,9 @@ Now analyze this message:"""
             return response
             
         except Exception as e:
-            logger.error(f"❌ ChatGPT-5 API error: {e}")
-            raise
+            logger.error(f"❌ ChatGPT-5 API error: {e}", exc_info=True)
+            # Return a safe fallback response for the intent router
+            return '{"intent": "chat", "response": "I\'m having trouble reaching my brain right now, Sami. Please try again shortly.", "confidence": 0.0}'
     
     def _parse_ai_response(self, ai_response: str) -> Dict[str, Any]:
         """Parse AI response into structured format.

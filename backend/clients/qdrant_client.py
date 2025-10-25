@@ -60,43 +60,53 @@ class ZyanaQdrantClient:
         """Ensure payload indexes exist on the collection.
         
         This method is idempotent and safe to call multiple times.
-        Creates indexes only if they don't already exist.
+        Aggressively tries to create indexes even if check fails.
         """
+        # Try to create indexes directly - Qdrant will silently ignore if they exist
+        logger.info(f"Ensuring indexes for {self.COLLECTION_NAME}...")
+        
+        # Create user_id index (aggressive approach - just create it)
         try:
-            # Get collection info to check existing indexes
+            self.client.create_payload_index(
+                collection_name=self.COLLECTION_NAME,
+                field_name="user_id",
+                field_schema=PayloadSchemaType.KEYWORD
+            )
+            logger.info("✅ user_id index created/verified")
+        except Exception as e:
+            # Index might already exist, which is fine
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.debug(f"user_id index already exists (expected): {e}")
+            else:
+                logger.warning(f"Could not create user_id index: {e}")
+        
+        # Create type index (aggressive approach - just create it)
+        try:
+            self.client.create_payload_index(
+                collection_name=self.COLLECTION_NAME,
+                field_name="type",
+                field_schema=PayloadSchemaType.KEYWORD
+            )
+            logger.info("✅ type index created/verified")
+        except Exception as e:
+            # Index might already exist, which is fine
+            if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
+                logger.debug(f"type index already exists (expected): {e}")
+            else:
+                logger.warning(f"Could not create type index: {e}")
+        
+        # Verify indexes were created
+        try:
             collection_info = self.client.get_collection(collection_name=self.COLLECTION_NAME)
             existing_indexes = collection_info.payload_schema or {}
+            logger.info(f"📋 Current indexes: {list(existing_indexes.keys())}")
             
-            # Check and create user_id index if missing
-            if "user_id" not in existing_indexes:
-                logger.info(f"Creating user_id index for {self.COLLECTION_NAME}")
-                self.client.create_payload_index(
-                    collection_name=self.COLLECTION_NAME,
-                    field_name="user_id",
-                    field_schema=PayloadSchemaType.KEYWORD
-                )
-                logger.info("✅ user_id index created")
+            if "user_id" in existing_indexes and "type" in existing_indexes:
+                logger.info(f"✅ All required indexes verified for {self.COLLECTION_NAME}")
             else:
-                logger.debug("user_id index already exists")
-            
-            # Check and create type index if missing
-            if "type" not in existing_indexes:
-                logger.info(f"Creating type index for {self.COLLECTION_NAME}")
-                self.client.create_payload_index(
-                    collection_name=self.COLLECTION_NAME,
-                    field_name="type",
-                    field_schema=PayloadSchemaType.KEYWORD
-                )
-                logger.info("✅ type index created")
-            else:
-                logger.debug("type index already exists")
-                
-            logger.info(f"✅ All indexes verified for {self.COLLECTION_NAME}")
-            
+                logger.error(f"❌ Missing indexes! Found: {list(existing_indexes.keys())}, Required: ['user_id', 'type']")
         except Exception as e:
-            logger.error(f"Error ensuring indexes: {e}")
-            # Don't raise - allow system to continue even if index check fails
-            # The indexes might already exist and the error is just an API quirk
+            logger.error(f"Could not verify indexes: {e}", exc_info=True)
     
     def recreate_collection_with_indexes(self):
         """Recreate collection with proper indexes (for migration).

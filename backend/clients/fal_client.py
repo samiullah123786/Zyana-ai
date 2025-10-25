@@ -27,8 +27,9 @@ class FalAIClient:
         }
     
     @retry(
-        stop=stop_after_attempt(1),  # Only try once (no retries)
-        wait=wait_exponential(multiplier=1, min=1, max=2)
+        stop=stop_after_attempt(3),  # Try 3 times with exponential backoff
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True
     )
     async def chat(
         self,
@@ -169,6 +170,11 @@ class FalAIClient:
         messages.append({"role": "user", "content": prompt})
         
         try:
+            # Validate API key before making request
+            if not self.api_key or self.api_key == "":
+                logger.error("FAL_API_KEY is not configured")
+                return "I'm having trouble reaching my brain right now, Sami. Please try again shortly. (API key missing)"
+            
             response = await self.chat(messages, model=model, temperature=temperature)
             
             # Extract text from response
@@ -180,11 +186,12 @@ class FalAIClient:
                     return choice["text"]
             
             logger.warning(f"Unexpected response structure: {response}")
-            return ""
+            return "I got a response but couldn't understand it. Please try again."
             
         except Exception as e:
-            logger.error(f"Error in chat_simple: {e}")
-            raise
+            logger.error(f"Error in chat_simple: {e}", exc_info=True)
+            # Graceful fallback instead of crashing
+            return "I'm having trouble reaching my brain right now, Sami. Please try again shortly."
     
     async def embed(
         self,
