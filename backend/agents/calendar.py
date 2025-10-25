@@ -206,7 +206,7 @@ class CalendarAgent:
             # Fallback to current approach
             now = datetime.now(PAKISTAN_TZ)
             start_time = now + timedelta(hours=1)
-            end_time = start_time + timedelta(hours=1)
+        end_time = start_time + timedelta(hours=1)
         
         # Extract title (person name or description)
         title = parsed.person if parsed.person else "Meeting"
