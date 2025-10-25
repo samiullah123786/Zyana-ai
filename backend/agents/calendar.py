@@ -1,8 +1,15 @@
-"""Calendar Agent for event management and Google Calendar sync."""
+"""Calendar Agent for event management and Google Calendar sync.
+
+Enhanced with:
+- Robust datetime parsing via dateparser
+- ISO8601 validation with timezone
+- Memory persistence to Qdrant
+- Full conversation context storage
+"""
 import logging
 import json
 from datetime import datetime, timedelta, date
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
 import pytz
 
@@ -13,12 +20,14 @@ from googleapiclient.discovery import build
 
 from models.schemas import ParsedMessage, EventCreate
 from clients.supabase_client import supabase_client
+from services.datetime_parser import datetime_parser
+from services.context_retriever import context_retriever
 from config import settings
 
 logger = logging.getLogger(__name__)
 
-# Pakistan timezone
-PAKISTAN_TZ = pytz.timezone('Asia/Karachi')
+# Default timezone
+PAKISTAN_TZ = pytz.timezone(settings.default_timezone)
 
 TOKEN_FILE = Path("config/google_token.json")
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -187,13 +196,17 @@ class CalendarAgent:
         # Reload credentials for this specific user (fixes multi-user bug)
         self._load_credentials(user_id=internal_user_id)
         
-        # Extract date and time from message
-        event_date, event_time = self._extract_datetime_from_message(parsed.raw_text)
+        # Extract date and time using datetime_parser
+        parsed_datetime = datetime_parser.parse_datetime(parsed.raw_text)
         
-        # Create datetime objects in Pakistan timezone
-        naive_datetime = datetime.combine(event_date, event_time)
-        start_time = PAKISTAN_TZ.localize(naive_datetime)
-        end_time = start_time + timedelta(hours=1)
+        if parsed_datetime['iso_start']:
+            start_time = datetime.fromisoformat(parsed_datetime['iso_start'])
+            end_time = datetime.fromisoformat(parsed_datetime['iso_end'])
+        else:
+            # Fallback to current approach
+            now = datetime.now(PAKISTAN_TZ)
+            start_time = now + timedelta(hours=1)
+            end_time = start_time + timedelta(hours=1)
         
         # Extract title (person name or description)
         title = parsed.person if parsed.person else "Meeting"
@@ -210,102 +223,199 @@ class CalendarAgent:
         
         return await self.create_event(event)
     
-    def _extract_datetime_from_message(self, message: str) -> tuple:
-        """Extract date and time from calendar message.
+    def _extract_datetime_from_parsed_result(
+        self,
+        parsed_result: Dict[str, Any]
+    ) -> tuple[datetime, datetime]:
+        """Extract start and end datetimes from intent router result.
         
         Args:
-            message: User message
+            parsed_result: Result from intent router with calendar data
             
         Returns:
-            Tuple of (date, time)
+            Tuple of (start_time, end_time) as timezone-aware datetimes
         """
-        from datetime import time as datetime_time
-        import re
+        start_iso = parsed_result.get('start_iso')
+        end_iso = parsed_result.get('end_iso')
+        duration_minutes = parsed_result.get('duration_minutes', 60)
         
-        message_lower = message.lower()
-        
-        # Get current time in Pakistan timezone
-        now_pk = datetime.now(PAKISTAN_TZ)
-        today = now_pk.date()
-        
-        # Handle "in X minutes/hours" patterns
-        if "in" in message_lower and ("minute" in message_lower or "hour" in message_lower):
-            # Extract number
-            match = re.search(r'in\s+(\d+)\s+(minute|hour)', message_lower)
-            if match:
-                amount = int(match.group(1))
-                unit = match.group(2)
-                
-                if unit == "minute":
-                    future_time = now_pk + timedelta(minutes=amount)
-                else:  # hour
-                    future_time = now_pk + timedelta(hours=amount)
-                
-                return future_time.date(), future_time.time()
-        
-        # Extract date
-        event_date = today
-        if "tomorrow" in message_lower:
-            event_date = today + timedelta(days=1)
-        elif "today" in message_lower:
-            event_date = today
-        elif "yesterday" in message_lower:
-            event_date = today - timedelta(days=1)
-        elif any(day in message_lower for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']):
-            # Simple day extraction (could be enhanced)
-            event_date = today + timedelta(days=1)
-        
-        # Natural language time words
-        if "morning" in message_lower:
-            event_time = datetime_time(hour=9, minute=0)
-        elif "noon" in message_lower or "midday" in message_lower:
-            event_time = datetime_time(hour=12, minute=0)
-        elif "afternoon" in message_lower:
-            event_time = datetime_time(hour=14, minute=0)  # 2pm
-        elif "evening" in message_lower:
-            event_time = datetime_time(hour=18, minute=0)  # 6pm
-        elif "night" in message_lower:
-            event_time = datetime_time(hour=20, minute=0)  # 8pm
+        if start_iso:
+            # Parse ISO timestamp
+            start_time = datetime.fromisoformat(start_iso)
+            
+            if end_iso:
+                end_time = datetime.fromisoformat(end_iso)
+            else:
+                # Calculate end time from duration
+                end_time = start_time + timedelta(minutes=duration_minutes)
         else:
-            # Extract time - look for patterns like "10am", "3pm", "10:30am", "15:00", "10 o'clock"
-            time_patterns = [
-                r'(\d{1,2}):(\d{2})\s*(am|pm)',  # 10:30am
-                r'(\d{1,2})\s*o\'?clock\s*(am|pm|in the morning|in the afternoon|in the evening)?',  # 10 o'clock
-                r'(\d{1,2})\s*(am|pm)',           # 10am
-                r'(\d{1,2}):(\d{2})',             # 15:00
-            ]
-            
-            event_time = datetime_time(hour=9, minute=0)  # Default 9am
-            
-            for pattern in time_patterns:
-                match = re.search(pattern, message_lower)
-                if match:
-                    if len(match.groups()) == 3:  # With minutes and am/pm
-                        hour = int(match.group(1))
-                        minute = int(match.group(2))
-                        period = match.group(3)
-                        if period == 'pm' and hour < 12:
-                            hour += 12
-                        elif period == 'am' and hour == 12:
-                            hour = 0
-                        event_time = datetime_time(hour=hour, minute=minute)
-                        break
-                    elif len(match.groups()) == 2 and match.group(2) in ['am', 'pm']:  # Just hour with am/pm
-                        hour = int(match.group(1))
-                        period = match.group(2)
-                        if period == 'pm' and hour < 12:
-                            hour += 12
-                        elif period == 'am' and hour == 12:
-                            hour = 0
-                        event_time = datetime_time(hour=hour, minute=0)
-                        break
-                    elif len(match.groups()) == 2:  # 24-hour format
-                        hour = int(match.group(1))
-                        minute = int(match.group(2))
-                        event_time = datetime_time(hour=hour, minute=minute)
-                        break
+            # Fallback: use current time + 1 hour
+            now = datetime.now(PAKISTAN_TZ)
+            start_time = now + timedelta(hours=1)
+            end_time = start_time + timedelta(minutes=duration_minutes)
         
-        return event_date, event_time
+        # Ensure timezone-aware
+        if start_time.tzinfo is None:
+            start_time = PAKISTAN_TZ.localize(start_time)
+        if end_time.tzinfo is None:
+            end_time = PAKISTAN_TZ.localize(end_time)
+        
+        return start_time, end_time
+    
+    def _validate_iso_timestamps(self, start_iso: str, end_iso: str) -> bool:
+        """Validate ISO8601 timestamps with timezone.
+        
+        Args:
+            start_iso: Start time ISO string
+            end_iso: End time ISO string
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        try:
+            start_dt = datetime.fromisoformat(start_iso)
+            end_dt = datetime.fromisoformat(end_iso)
+            
+            # Must have timezone
+            if start_dt.tzinfo is None or end_dt.tzinfo is None:
+                logger.warning("❌ ISO timestamps missing timezone")
+                return False
+            
+            # End must be after start
+            if end_dt <= start_dt:
+                logger.warning("❌ End time must be after start time")
+                return False
+            
+            return True
+        except (ValueError, TypeError) as e:
+            logger.error(f"❌ Invalid ISO timestamps: {e}")
+            return False
+    
+    async def create_event_from_intent(
+        self,
+        intent_result: Dict[str, Any],
+        user_id: str
+    ) -> Dict[str, Any]:
+        """Create calendar event from intent router result.
+        
+        Args:
+            intent_result: Result from intent router with calendar data
+            user_id: User identifier
+            
+        Returns:
+            Response dict
+        """
+        # Map Telegram user ID to internal user_id
+        internal_user_id = await self._get_or_create_user(user_id)
+        
+        # Reload credentials for this specific user
+        self._load_credentials(user_id=internal_user_id)
+        
+        # Extract datetime from intent result
+        start_time, end_time = self._extract_datetime_from_parsed_result(intent_result)
+        
+        # Extract event details
+        title = intent_result.get('title') or intent_result.get('parameters', {}).get('title', 'Event')
+        attendees = intent_result.get('attendees', [])
+        location = intent_result.get('location')
+        session_id = intent_result.get('session_id')
+        raw_text = intent_result.get('raw_text', intent_result.get('parameters', {}).get('description', ''))
+        confidence_score = intent_result.get('confidence', 1.0)
+        
+        # Create event object
+        event = EventCreate(
+            user_id=internal_user_id,
+            title=title,
+            start_time=start_time,
+            end_time=end_time,
+            description=raw_text,
+            location=location
+        )
+        
+        # Create event
+        result = await self.create_event(event, session_id=session_id)
+        
+        # Store resolved event with full context
+        if result.get('success'):
+            await self._store_resolved_event(
+                user_id=user_id,
+                session_id=session_id,
+                raw_text=raw_text,
+                resolved_title=title,
+                resolved_start_iso=start_time.isoformat(),
+                resolved_end_iso=end_time.isoformat(),
+                attendees=attendees,
+                location=location,
+                google_event_id=result.get('data', {}).get('google_event_id'),
+                confidence_score=confidence_score
+            )
+        
+        return result
+    
+    async def _store_resolved_event(
+        self,
+        user_id: str,
+        session_id: Optional[str],
+        raw_text: str,
+        resolved_title: str,
+        resolved_start_iso: str,
+        resolved_end_iso: str,
+        attendees: List[str],
+        location: Optional[str],
+        google_event_id: Optional[str],
+        confidence_score: float
+    ) -> bool:
+        """Store resolved calendar event with full conversation context.
+        
+        Args:
+            user_id: User identifier
+            session_id: Session ID (if from multi-turn clarification)
+            raw_text: Original user message
+            resolved_title: Final resolved title
+            resolved_start_iso: ISO start time
+            resolved_end_iso: ISO end time
+            attendees: List of attendees
+            location: Event location
+            google_event_id: Google Calendar event ID
+            confidence_score: Confidence score
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Store in calendar_events table
+            result = supabase_client.admin.table("calendar_events").insert({
+                "user_id": user_id,
+                "session_id": session_id,
+                "raw_user_text": raw_text,
+                "resolved_title": resolved_title,
+                "resolved_start_iso": resolved_start_iso,
+                "resolved_end_iso": resolved_end_iso,
+                "attendees": attendees,
+                "location": location,
+                "google_event_id": google_event_id,
+                "confidence_score": confidence_score
+            }).execute()
+            
+            logger.info(f"✅ Stored resolved calendar event: {resolved_title}")
+            
+            # Store in Qdrant for vector search
+            await context_retriever.store_calendar_event(
+                user_id=user_id,
+                session_id=session_id or f"direct_{int(datetime.now().timestamp())}",
+                raw_text=raw_text,
+                resolved_title=resolved_title,
+                resolved_start_iso=resolved_start_iso,
+                resolved_end_iso=resolved_end_iso,
+                attendees=attendees,
+                confidence_score=confidence_score
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error storing resolved event: {e}", exc_info=True)
+            return False
     
     def _generate_google_calendar_link(self, event: EventCreate) -> str:
         """Generate a Google Calendar "Add Event" link.
@@ -343,11 +453,16 @@ class CalendarAgent:
         
         return f"{base_url}?{'&'.join(params)}"
     
-    async def create_event(self, event: EventCreate) -> Dict[str, Any]:
+    async def create_event(
+        self,
+        event: EventCreate,
+        session_id: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Create calendar event in DB and Google Calendar.
         
         Args:
             event: Event data
+            session_id: Optional session ID for tracking multi-turn clarifications
             
         Returns:
             Response dict

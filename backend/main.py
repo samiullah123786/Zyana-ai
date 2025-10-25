@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 
 from config import settings
-from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin
+from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin, feedback
 
 # Configure logging
 logging.basicConfig(
@@ -54,6 +54,13 @@ async def startup_event():
             logger.info("✅ All agents imported successfully")
         except Exception as e:
             logger.error(f"❌ Agent import failed: {e}", exc_info=True)
+        
+        # Initialize agent self-description
+        try:
+            from startup.agent_self_describe import agent_self_describe
+            await agent_self_describe.initialize()
+        except Exception as e:
+            logger.error(f"❌ Agent self-describe failed: {e}", exc_info=True)
         
         # Set up Telegram webhook ALWAYS (not just production)
         if settings.webhook_url:
@@ -155,6 +162,7 @@ app.include_router(invoice.router, prefix="/invoice", tags=["Invoice"])
 app.include_router(client.router, prefix="/client", tags=["Client"])
 app.include_router(notification.router, prefix="/notification", tags=["Notification"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
+app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
 
 
 @app.exception_handler(Exception)

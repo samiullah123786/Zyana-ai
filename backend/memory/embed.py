@@ -9,6 +9,7 @@ from clients.qdrant_client import qdrant_client
 from clients.supabase_client import supabase_client
 from models.schemas import MemorySearchResponse, MemorySearchResult
 from services.prompts import get_prompt, format_prompt
+from services.embeddings import embedding_service
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,8 @@ class MemoryService:
             metadata: Metadata (table, row_id, business, date, etc.)
         """
         try:
-            # Generate embedding
-            embedding = await fal_client.embed_single(content)
+            # Generate embedding using new pluggable service
+            embedding = await embedding_service.embed_single(content)
             
             # Create unique ID
             vector_id = metadata.get("vector_id") or str(uuid.uuid4())
@@ -65,8 +66,8 @@ class MemoryService:
             MemorySearchResponse with results and summary
         """
         try:
-            # Generate query embedding
-            query_embedding = await fal_client.embed_single(query)
+            # Generate query embedding using new pluggable service
+            query_embedding = await embedding_service.embed_single(query)
             
             # Search in Qdrant
             results = await qdrant_client.search_memory(

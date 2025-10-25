@@ -2,14 +2,24 @@
 
 This module uses ChatGPT-5 via Fal AI to intelligently route messages
 to the appropriate sub-agent or respond conversationally.
+
+Enhanced with:
+- Strict function calling for calendar intents
+- Multi-turn clarification support
+- Session-based conversation management
 """
 import logging
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 from clients.fal_client import fal_client
 from clients.supabase_client import supabase_client
+from services.session_manager import session_manager
+from services.datetime_parser import datetime_parser
+from services.context_retriever import context_retriever
+from services.rag import rag_service
+from services.mirror_mode import mirror_mode_service
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -29,7 +39,7 @@ class IntentRouter:
         user_id: str,
         user_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Analyze message and route to appropriate handler.
+        """Analyze message and route to appropriate handler with clarification support.
         
         Args:
             message: User's natural language message
@@ -42,14 +52,42 @@ class IntentRouter:
                 - parameters: Extracted parameters for sub-agent
                 - response: Text response to user
                 - route_to: Sub-agent to route to (or None for chat)
+                - needs_clarification: True if clarification needed
+                - session_id: Session ID for multi-turn clarification
         """
         try:
+            # Check for active session (user replying to clarification)
+            active_session = session_manager.get_active_session(user_id)
+            
+            if active_session:
+                logger.info(f"📝 Continuing active session for user {user_id}")
+                return await self._handle_clarification_response(
+                    message,
+                    user_id,
+                    active_session
+                )
+            
             # Load user context if not provided
             if user_context is None:
                 user_context = await self._load_user_context(user_id)
             
-            # Build AI prompt
-            system_prompt = self._build_system_prompt(user_context)
+            # Get relevant calendar context from Qdrant
+            calendar_context = await context_retriever.get_calendar_context(
+                user_id,
+                message,
+                days_back=90,
+                limit=3
+            )
+            
+            # Get RAG memory context (semantic memories + mirror mode + preferences)
+            memory_context = await rag_service.get_user_memory_context(
+                user_id,
+                message,
+                include_mirror=True
+            )
+            
+            # Build AI prompt with enhanced context
+            system_prompt = self._build_system_prompt(user_context, calendar_context, memory_context)
             
             # Call ChatGPT-5 via Fal AI
             ai_response = await self._call_chatgpt5(message, system_prompt)
@@ -57,10 +95,33 @@ class IntentRouter:
             # Parse AI response
             result = self._parse_ai_response(ai_response)
             
+            # Validate and check for clarification needs
+            if result['intent'] in ['schedule_meeting', 'reschedule_meeting', 'set_reminder']:
+                validated = await self._validate_calendar_intent(result, message, user_id)
+                result.update(validated)
+            
             # Update user context
             await self._update_user_context(user_id, message, result)
             
-            logger.info(f"🧠 Intent routed: {result['intent']} for user {user_id}")
+            # Apply Mirror Mode style transformation to response
+            if result.get('response'):
+                try:
+                    # Convert user_id to int for mirror_mode_service
+                    internal_user_id = int(user_id) if user_id.isdigit() else 1
+                    transformed_response = await mirror_mode_service.apply_style_transformation(
+                        result['response'],
+                        internal_user_id
+                    )
+                    result['response'] = transformed_response
+                    logger.debug(f"✨ Applied Mirror Mode transformation for user {user_id}")
+                except Exception as mirror_error:
+                    logger.warning(f"⚠️  Mirror Mode transformation failed: {mirror_error}")
+                    # Keep original response if transformation fails
+            
+            logger.info(
+                f"🧠 Intent routed: {result['intent']} for user {user_id} "
+                f"(confidence: {result.get('confidence', 0):.2f})"
+            )
             
             return result
             
@@ -72,14 +133,22 @@ class IntentRouter:
                 "parameters": {},
                 "response": "I'm here! How can I help you today?",
                 "route_to": None,
-                "confidence": 0.5
+                "confidence": 0.5,
+                "needs_clarification": False
             }
     
-    def _build_system_prompt(self, user_context: Dict[str, Any]) -> str:
-        """Build system prompt for ChatGPT-5.
+    def _build_system_prompt(
+        self,
+        user_context: Dict[str, Any],
+        calendar_context: Optional[Dict[str, Any]] = None,
+        memory_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Build system prompt for ChatGPT-5 with strict function calling and RAG context.
         
         Args:
             user_context: User's context and preferences
+            calendar_context: Recent calendar events and context
+            memory_context: RAG memory context (semantic memories + mirror mode)
             
         Returns:
             System prompt string
@@ -87,17 +156,30 @@ class IntentRouter:
         last_intent = user_context.get("last_intent", "none")
         preferences = user_context.get("preferences", {})
         tone = user_context.get("tone", "friendly")
+        owner_name = settings.owner_name
         
-        return f"""You are Zyana's core brain - an intelligent, friendly AI assistant.
+        # Add calendar context if available
+        calendar_context_text = ""
+        if calendar_context and calendar_context.get('context_summary'):
+            calendar_context_text = f"\n\n**Recent Calendar Context:**\n{calendar_context['context_summary']}"
+        
+        # Add RAG memory context if available
+        memory_context_text = ""
+        if memory_context and memory_context.get('has_context'):
+            memory_context_text = f"\n\n{memory_context.get('formatted_context', '')}"
+        
+        return f"""You are Zyana - {owner_name}'s intelligent, friendly AI assistant.
 
 Your job: Analyze user messages and decide if they contain actionable tasks or are casual conversation.
 
 **Available Actions:**
 - schedule_meeting: Book calendar events (e.g., "meeting at 5pm tomorrow")
+- reschedule_meeting: Change existing event time
+- cancel_meeting: Cancel scheduled event
+- set_reminder: Set notifications (e.g., "remind me to call John")
 - record_expense: Log financial transactions (e.g., "spent 5000 on software")
 - record_income: Log income (e.g., "received 10k from client")
 - loan: Track loans given/received (e.g., "lent Ali 5000")
-- set_reminder: Set notifications (e.g., "remind me to call John")
 - note_idea: Save notes/memories (e.g., "remember my password is xyz")
 - create_invoice: Generate invoices (e.g., "invoice ABC Corp for $5000")
 - track_client: Add/update clients (e.g., "add client XYZ Company")
@@ -105,58 +187,102 @@ Your job: Analyze user messages and decide if they contain actionable tasks or a
 - chat: Casual conversation, no specific action
 
 **User Context:**
+- Owner: {owner_name}
 - Last intent: {last_intent}
 - Preferences: {json.dumps(preferences)}
 - Tone: {tone}
+- Timezone: {settings.default_timezone}{calendar_context_text}{memory_context_text}
 
-**Your Response Format (JSON):**
+**STRICT OUTPUT FORMAT (JSON ONLY - NO EXTRA TEXT):**
+
+For calendar intents (schedule_meeting, reschedule_meeting, set_reminder):
 {{
-  "intent": "one of the actions above",
-  "parameters": {{
-    "title": "extracted event/transaction name",
-    "amount": extracted number,
-    "person": "person's name",
-    "datetime": "extracted date/time",
-    "description": "any additional details",
-    "business": "business name if mentioned"
-  }},
-  "response": "friendly text response to user",
-  "confidence": 0.0 to 1.0
+  "intent": "schedule_meeting",
+  "title": "Meeting with Ali" or null,
+  "start_iso": "2025-10-26T17:00:00+05:00" or null,
+  "end_iso": "2025-10-26T18:00:00+05:00" or null,
+  "duration_minutes": 60 or null,
+  "attendees": ["Ali", "someone@example.com"] or [],
+  "location": "Office" or null,
+  "confidence": 0.0-1.0,
+  "response": "friendly text response"
 }}
+
+For other intents:
+{{
+  "intent": "record_expense|record_income|loan|chat|etc",
+  "parameters": {{
+    "amount": number or null,
+    "person": "name" or null,
+    "description": "text" or null,
+    "business": "business name" or null
+  }},
+  "response": "friendly text response",
+  "confidence": 0.0-1.0
+}}
+
+**Calendar Intent Rules:**
+1. If user mentions specific time (3pm, tomorrow, etc), try to parse to ISO8601 with timezone +05:00 (Asia/Karachi)
+2. If time is unclear/missing, return null for start_iso and set confidence < 0.7
+3. If date is missing, return null for start_iso
+4. Always extract attendees from phrases like "with Ali", "call John"
+5. Default duration: 60 minutes for meetings, 15 minutes for reminders
 
 **Examples:**
 
-User: "Schedule meeting with Ali at 5pm tomorrow"
+User: "Schedule meeting with Ali tomorrow at 3pm"
 {{
   "intent": "schedule_meeting",
-  "parameters": {{"title": "Meeting with Ali", "datetime": "tomorrow 5pm", "person": "Ali"}},
-  "response": "Got it! I'll schedule a meeting with Ali tomorrow at 5pm.",
-  "confidence": 0.95
+  "title": "Meeting with Ali",
+  "start_iso": "2025-10-26T15:00:00+05:00",
+  "end_iso": "2025-10-26T16:00:00+05:00",
+  "duration_minutes": 60,
+  "attendees": ["Ali"],
+  "location": null,
+  "confidence": 0.95,
+  "response": "Got it, {owner_name}! I'll schedule a meeting with Ali tomorrow at 3pm."
 }}
 
-User: "Bro I'm tired today"
+User: "Schedule lunch with team next Friday"
+{{
+  "intent": "schedule_meeting",
+  "title": "Lunch with team",
+  "start_iso": null,
+  "end_iso": null,
+  "duration_minutes": 60,
+  "attendees": ["team"],
+  "location": null,
+  "confidence": 0.6,
+  "response": "Sure! What time works for lunch next Friday?"
+}}
+
+User: "Schedule a meeting"
+{{
+  "intent": "schedule_meeting",
+  "title": "Meeting",
+  "start_iso": null,
+  "end_iso": null,
+  "duration_minutes": 60,
+  "attendees": [],
+  "location": null,
+  "confidence": 0.4,
+  "response": "I'd be happy to schedule a meeting! When would you like it?"
+}}
+
+User: "Hey Zyana, what's up?"
 {{
   "intent": "chat",
   "parameters": {{}},
-  "response": "I feel you! Take it easy and rest up. You've earned it. 💪",
-  "confidence": 0.9
+  "response": "Hey {owner_name}! All good here. What can I help you with? 😊",
+  "confidence": 1.0
 }}
 
-User: "Note that I spent 5000 on editing software"
-{{
-  "intent": "record_expense",
-  "parameters": {{"amount": 5000, "description": "editing software", "category": "software"}},
-  "response": "✅ Recorded expense of 5000 for editing software!",
-  "confidence": 0.95
-}}
-
-**Rules:**
-1. Be friendly and casual
-2. Use emojis appropriately
-3. If unsure, default to "chat" intent
-4. Extract ALL relevant parameters
-5. Respond in user's language/tone
-6. Be context-aware based on user preferences
+**Critical Rules:**
+1. Output ONLY valid JSON, no markdown or extra text
+2. Use owner name "{owner_name}" when appropriate
+3. For calendar intents, prefer ISO timestamps when possible
+4. If uncertain (confidence < 0.7), be honest and ask for clarification
+5. Be friendly, casual, and helpful
 
 Now analyze this message:"""
     
@@ -318,6 +444,255 @@ Now analyze this message:"""
             
         except Exception as e:
             logger.error(f"Error updating user context: {e}")
+    
+    async def _validate_calendar_intent(
+        self,
+        result: Dict[str, Any],
+        message: str,
+        user_id: str
+    ) -> Dict[str, Any]:
+        """Validate calendar intent and check if clarification is needed.
+        
+        Args:
+            result: Parsed intent result
+            message: Original user message
+            user_id: User identifier
+            
+        Returns:
+            Dict with validation results and clarification needs
+        """
+        needs_clarification = False
+        pending_fields = []
+        partial_data = {}
+        
+        # Extract calendar-specific fields
+        title = result.get('title') or result.get('parameters', {}).get('title')
+        start_iso = result.get('start_iso')
+        end_iso = result.get('end_iso')
+        duration_minutes = result.get('duration_minutes', 60)
+        attendees = result.get('attendees', [])
+        location = result.get('location')
+        confidence = result.get('confidence', 0.5)
+        
+        # If start_iso is missing or null, try datetime parser
+        if not start_iso:
+            parsed_datetime = datetime_parser.parse_datetime(message)
+            
+            if parsed_datetime['iso_start']:
+                start_iso = parsed_datetime['iso_start']
+                end_iso = parsed_datetime['iso_end']
+                confidence = max(confidence, parsed_datetime['confidence'])
+            
+            # Check if ambiguous
+            if parsed_datetime['is_ambiguous'] or confidence < settings.confidence_threshold:
+                needs_clarification = True
+                pending_fields.append('datetime')
+        
+        # Check required fields
+        if not title:
+            # Try to extract from message
+            if any(word in message.lower() for word in ['meeting', 'call', 'appointment']):
+                title = "Meeting"
+            else:
+                needs_clarification = True
+                pending_fields.append('title')
+        
+        # Build partial data
+        partial_data = {
+            'title': title,
+            'start_iso': start_iso,
+            'end_iso': end_iso,
+            'duration_minutes': duration_minutes,
+            'attendees': attendees,
+            'location': location
+        }
+        
+        # If clarification needed, create session
+        session_id = None
+        clarification_question = None
+        
+        if needs_clarification:
+            # Generate clarification question
+            clarification_question = self._generate_clarification_question(
+                pending_fields,
+                partial_data,
+                message
+            )
+            
+            # Create session
+            session_id = session_manager.create_session(
+                user_id=user_id,
+                intent=result['intent'],
+                pending_fields=pending_fields,
+                partial_data=partial_data,
+                initial_message=message
+            )
+            
+            logger.info(
+                f"📝 Created clarification session {session_id} "
+                f"(pending: {pending_fields})"
+            )
+        
+        return {
+            'needs_clarification': needs_clarification,
+            'pending_fields': pending_fields,
+            'partial_data': partial_data,
+            'session_id': session_id,
+            'clarification_question': clarification_question,
+            'response': clarification_question if needs_clarification else result.get('response')
+        }
+    
+    def _generate_clarification_question(
+        self,
+        pending_fields: List[str],
+        partial_data: Dict[str, Any],
+        original_message: str
+    ) -> str:
+        """Generate a clarification question for missing fields.
+        
+        Args:
+            pending_fields: List of fields that need clarification
+            partial_data: Partially resolved data
+            original_message: Original user message
+            
+        Returns:
+            Clarification question string
+        """
+        owner_name = settings.owner_name
+        
+        if 'datetime' in pending_fields:
+            if partial_data.get('title'):
+                return f"Sure, {owner_name}! What time should I schedule \"{partial_data['title']}\"?"
+            else:
+                return f"I'd be happy to schedule that, {owner_name}! When would you like it?"
+        
+        if 'title' in pending_fields:
+            return f"Got it, {owner_name}! What should I call this event?"
+        
+        # Default clarification
+        return f"Could you provide a bit more detail, {owner_name}? 😊"
+    
+    async def _handle_clarification_response(
+        self,
+        message: str,
+        user_id: str,
+        session: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Handle user's response to a clarification question.
+        
+        Args:
+            message: User's clarification response
+            user_id: User identifier
+            session: Active session data
+            
+        Returns:
+            Updated intent result
+        """
+        try:
+            session_id = session.get('session_id')
+            pending_fields = session.get('pending_fields', [])
+            partial_data = session.get('partial_data', {})
+            original_intent = session.get('intent', 'schedule_meeting')
+            
+            logger.info(f"📝 Processing clarification response for session {session_id}")
+            
+            # Update session with new message
+            session_manager.update_session(
+                session_id,
+                {},
+                add_message=message,
+                message_role='user'
+            )
+            
+            # Try to resolve pending fields
+            resolved_fields = []
+            
+            if 'datetime' in pending_fields:
+                # Parse datetime from clarification
+                parsed_datetime = datetime_parser.parse_datetime(message)
+                
+                if parsed_datetime['iso_start'] and not parsed_datetime['is_ambiguous']:
+                    partial_data['start_iso'] = parsed_datetime['iso_start']
+                    partial_data['end_iso'] = parsed_datetime['iso_end']
+                    partial_data['duration_minutes'] = parsed_datetime['duration_minutes']
+                    resolved_fields.append('datetime')
+                elif parsed_datetime['confidence'] >= settings.confidence_threshold:
+                    # Accept if confidence is good enough
+                    partial_data['start_iso'] = parsed_datetime['iso_start']
+                    partial_data['end_iso'] = parsed_datetime['iso_end']
+                    resolved_fields.append('datetime')
+            
+            if 'title' in pending_fields:
+                # Use the message as title if it's short enough
+                if len(message.split()) <= 10:
+                    partial_data['title'] = message
+                    resolved_fields.append('title')
+            
+            # Update pending fields
+            for field in resolved_fields:
+                if field in pending_fields:
+                    pending_fields.remove(field)
+            
+            # Check if all fields resolved
+            if not pending_fields:
+                # Mark session complete
+                session_manager.mark_session_complete(session_id)
+                
+                # Return completed intent
+                return {
+                    'intent': original_intent,
+                    'parameters': partial_data,
+                    'response': f"Perfect, {settings.owner_name}! I'll create that event now.",
+                    'route_to': 'calendar',
+                    'confidence': 0.95,
+                    'needs_clarification': False,
+                    'session_id': session_id,
+                    **partial_data
+                }
+            else:
+                # Still need more clarification
+                clarification_question = self._generate_clarification_question(
+                    pending_fields,
+                    partial_data,
+                    message
+                )
+                
+                # Update session
+                session_manager.update_session(
+                    session_id,
+                    {
+                        'pending_fields': pending_fields,
+                        'partial_data': partial_data
+                    },
+                    add_message=clarification_question,
+                    message_role='assistant'
+                )
+                
+                return {
+                    'intent': original_intent,
+                    'parameters': partial_data,
+                    'response': clarification_question,
+                    'route_to': None,
+                    'confidence': 0.5,
+                    'needs_clarification': True,
+                    'session_id': session_id,
+                    'pending_fields': pending_fields
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error handling clarification response: {e}", exc_info=True)
+            # Clear session and return error
+            if session_id:
+                session_manager.clear_session(session_id)
+            
+            return {
+                'intent': 'chat',
+                'parameters': {},
+                'response': "Sorry, I got confused. Could you start over? 😅",
+                'route_to': None,
+                'confidence': 0.3,
+                'needs_clarification': False
+            }
 
 
 # Global instance

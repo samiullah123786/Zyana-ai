@@ -48,30 +48,47 @@ class ZyanaQdrantClient:
     
     async def add_memory(
         self,
-        vector_id: str,
-        embedding: List[float],
-        payload: Dict[str, Any]
+        content: str = None,  # For backwards compatibility
+        embedding: List[float] = None,
+        metadata: Dict[str, Any] = None,
+        vector_id: str = None,
+        payload: Dict[str, Any] = None,
+        point_id: str = None,
+        collection_name: str = None
     ):
-        """Add a memory vector to Qdrant.
+        """Add a memory vector to Qdrant (flexible signature for compatibility).
         
         Args:
-            vector_id: Unique ID for the vector
+            content: Content text (for reference)
             embedding: Vector embedding
-            payload: Metadata (row_id, table, snippet, date, business)
+            metadata: Metadata dict
+            vector_id: Unique ID (deprecated, use point_id)
+            payload: Metadata (deprecated, use metadata)
+            point_id: Unique ID for the vector
+            collection_name: Optional collection name (defaults to COLLECTION_NAME)
         """
         try:
+            # Handle different parameter styles
+            final_id = point_id or vector_id
+            if not final_id:
+                import uuid
+                final_id = str(uuid.uuid4())
+            
+            final_payload = metadata or payload or {}
+            final_collection = collection_name or self.COLLECTION_NAME
+            
             point = PointStruct(
-                id=vector_id,
+                id=final_id,
                 vector=embedding,
-                payload=payload
+                payload=final_payload
             )
             
             self.client.upsert(
-                collection_name=self.COLLECTION_NAME,
+                collection_name=final_collection,
                 points=[point]
             )
             
-            logger.debug(f"Added memory vector: {vector_id}")
+            logger.debug(f"Added memory vector: {final_id} to {final_collection}")
             
         except Exception as e:
             logger.error(f"Error adding memory: {e}")
@@ -117,21 +134,110 @@ class ZyanaQdrantClient:
             logger.error(f"Error searching memory: {e}")
             return []
     
-    async def delete_memory(self, vector_id: str):
+    async def delete_memory(self, vector_id: str, collection_name: str = None):
         """Delete a memory vector.
         
         Args:
             vector_id: ID of vector to delete
+            collection_name: Optional collection name (defaults to COLLECTION_NAME)
         """
         try:
+            final_collection = collection_name or self.COLLECTION_NAME
+            
             self.client.delete(
-                collection_name=self.COLLECTION_NAME,
+                collection_name=final_collection,
                 points_selector=[vector_id]
             )
-            logger.debug(f"Deleted memory vector: {vector_id}")
+            logger.debug(f"Deleted memory vector: {vector_id} from {final_collection}")
             
         except Exception as e:
             logger.error(f"Error deleting memory: {e}")
+            raise
+    
+    def ensure_collection(self, collection_name: str, dimension: int = 1536):
+        """Ensure a specific collection exists.
+        
+        Args:
+            collection_name: Name of the collection
+            dimension: Vector dimension
+        """
+        try:
+            collections = self.client.get_collections().collections
+            collection_names = [col.name for col in collections]
+            
+            if collection_name not in collection_names:
+                logger.info(f"Creating collection: {collection_name}")
+                self.client.create_collection(
+                    collection_name=collection_name,
+                    vectors_config=VectorParams(
+                        size=dimension,
+                        distance=Distance.COSINE
+                    )
+                )
+                logger.info(f"✅ Collection created: {collection_name}")
+            else:
+                logger.debug(f"Collection already exists: {collection_name}")
+                
+        except Exception as e:
+            logger.error(f"Error ensuring collection: {e}")
+            raise
+    
+    def get_collection_info(self) -> Dict[str, Any]:
+        """Get information about all collections.
+        
+        Returns:
+            Dict with collection names and counts
+        """
+        try:
+            collections = self.client.get_collections().collections
+            
+            info = {}
+            for col in collections:
+                try:
+                    count = self.client.count(collection_name=col.name)
+                    info[col.name] = {
+                        'count': count.count,
+                        'vectors_config': str(col.config)
+                    }
+                except Exception as e:
+                    logger.warning(f"Error getting count for {col.name}: {e}")
+                    info[col.name] = {'count': 'unknown', 'error': str(e)}
+            
+            return info
+            
+        except Exception as e:
+            logger.error(f"Error getting collection info: {e}")
+            return {}
+    
+    async def delete_user_memories(self, user_id: str, collection: str = None):
+        """Delete all memories for a specific user (for "Forget" feature).
+        
+        Args:
+            user_id: User identifier
+            collection: Optional collection name (defaults to all)
+        """
+        try:
+            collections_to_process = [collection] if collection else [self.COLLECTION_NAME]
+            
+            for coll_name in collections_to_process:
+                # Delete points with matching user_id in payload
+                self.client.delete(
+                    collection_name=coll_name,
+                    points_selector={
+                        "filter": {
+                            "must": [
+                                {
+                                    "key": "user_id",
+                                    "match": {"value": user_id}
+                                }
+                            ]
+                        }
+                    }
+                )
+                logger.info(f"✅ Deleted memories for user {user_id} from {coll_name}")
+            
+        except Exception as e:
+            logger.error(f"Error deleting user memories: {e}")
             raise
 
 

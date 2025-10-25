@@ -46,7 +46,10 @@ class Settings(BaseSettings):
     qdrant_api_key: Optional[str] = Field(default=None, alias="QDRANT_API_KEY")
     
     # Redis
-    redis_url: str = Field(default="redis://localhost:6379", alias="REDIS_URL")
+    redis_url: str = Field(
+        default="redis://default:MNI6xU3YrFLdSlkyngCHy9HYt3al7F3h@redis-13891.c270.us-east-1-3.ec2.redns.redis-cloud.com:13891",
+        alias="REDIS_URL"
+    )
     upstash_redis_rest_token: Optional[str] = Field(default=None, alias="UPSTASH_REDIS_REST_TOKEN")
     
     # PostgreSQL
@@ -65,6 +68,18 @@ class Settings(BaseSettings):
     
     # Environment
     environment: str = Field(default="development", alias="ENVIRONMENT")
+    
+    # Calendar Intelligence
+    default_timezone: str = Field(default="Asia/Karachi", alias="DEFAULT_TIMEZONE")
+    confidence_threshold: float = Field(default=0.7, alias="CONFIDENCE_THRESHOLD")
+    redis_session_ttl: int = Field(default=604800, alias="REDIS_SESSION_TTL")  # 7 days
+    owner_name: str = Field(default="Sami", alias="OWNER_NAME")
+    
+    # Memory & Learning Pipeline
+    embedding_provider: str = Field(default="openai", alias="EMBEDDING_PROVIDER")  # "fal" or "openai"
+    embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
+    mirror_embed_k: int = Field(default=5, alias="MIRROR_EMBED_K")
+    memory_summary_days: int = Field(default=90, alias="MEMORY_SUMMARY_DAYS")
     
     class Config:
         env_file = ".env"
