@@ -60,7 +60,8 @@ black==24.1.1
 flake8==7.0.0
 mypy==1.8.0
 
-# Voice transcription
-faster-whisper==1.0.1
-pydub==0.25.1
+# Voice transcription (DISABLED: Requires ffmpeg, not available on Render free tier)
+# faster-whisper==1.0.1
+# pydub==0.25.1
+# Note: Voice transcriber service has graceful fallback when these are not installed
 

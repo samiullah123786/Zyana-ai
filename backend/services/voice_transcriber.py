@@ -36,11 +36,13 @@ def get_whisper_model():
             logger.info("Whisper model loaded successfully")
             
         except ImportError:
-            logger.error("faster-whisper not installed. Install with: pip install faster-whisper")
-            raise
+            logger.warning("faster-whisper not installed - voice transcription disabled. Install with: pip install faster-whisper")
+            _whisper_model = None
+            return None
         except Exception as e:
             logger.error(f"Error loading Whisper model: {e}", exc_info=True)
-            raise
+            _whisper_model = None
+            return None
     
     return _whisper_model
 
@@ -70,6 +72,11 @@ class VoiceTranscriberService:
             # Get model (lazy load)
             if self.model is None:
                 self.model = get_whisper_model()
+            
+            # Check if model loaded successfully
+            if self.model is None:
+                logger.warning("Whisper model not available - voice transcription disabled")
+                return None
             
             logger.info(f"Transcribing audio file: {audio_file_path}")
             

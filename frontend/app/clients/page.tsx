@@ -287,7 +287,7 @@ export default function ClientsPage() {
                 <Button
                   onClick={() => handleDeleteClient(selectedClient.id)}
                   size="sm"
-                  variant="destructive"
+                  variant="danger"
                 >
                   Delete
                 </Button>

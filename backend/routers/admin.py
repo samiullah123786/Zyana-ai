@@ -250,3 +250,228 @@ async def get_all_habit_profiles():
         logger.error(f"Error getting habit profiles: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/voice_logs")
+async def get_voice_logs(
+    limit: int = 50,
+    offset: int = 0,
+    user_id: int = None,
+    start_date: str = None,
+    end_date: str = None
+):
+    """Get voice transcription logs with filtering and pagination.
+    
+    Args:
+        limit: Maximum number of results (default: 50)
+        offset: Number of results to skip (default: 0)
+        user_id: Optional filter by user ID
+        start_date: Optional filter by start date (ISO format)
+        end_date: Optional filter by end date (ISO format)
+        
+    Returns:
+        List of voice logs with transcriptions
+    """
+    try:
+        # TODO: Check admin access
+        # admin_user_id = 1  # Get from auth
+        # if not await check_admin_access(admin_user_id):
+        #     raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Build query
+        query = supabase_client.admin.table("voice_logs").select(
+            "id, user_id, source, file_url, file_size_bytes, duration_seconds, "
+            "transcription, language, confidence, model_used, meta, created_at, "
+            "users(id, name, telegram_id)"
+        )
+        
+        # Apply filters
+        if user_id:
+            query = query.eq("user_id", user_id)
+        
+        if start_date:
+            query = query.gte("created_at", start_date)
+        
+        if end_date:
+            query = query.lte("created_at", end_date)
+        
+        # Order and paginate
+        query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+        
+        result = query.execute()
+        
+        logger.info(f"Retrieved {len(result.data) if result.data else 0} voice logs")
+        
+        return {
+            "success": True,
+            "data": result.data if result.data else [],
+            "count": len(result.data) if result.data else 0,
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting voice logs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/voice_logs/{log_id}")
+async def get_voice_log_detail(log_id: str):
+    """Get detailed information for a specific voice log.
+    
+    Args:
+        log_id: Voice log UUID
+        
+    Returns:
+        Detailed voice log with full metadata
+    """
+    try:
+        # TODO: Check admin access
+        
+        result = supabase_client.admin.table("voice_logs").select(
+            "*, users(id, name, telegram_id, email)"
+        ).eq("id", log_id).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Voice log not found")
+        
+        return {
+            "success": True,
+            "data": result.data[0]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting voice log detail: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/voice_logs/{log_id}/retranscribe")
+async def retranscribe_voice_log(log_id: str):
+    """Re-run transcription for a voice log.
+    
+    Args:
+        log_id: Voice log UUID
+        
+    Returns:
+        Updated voice log with new transcription
+    """
+    try:
+        # TODO: Check admin access
+        from services.groq_transcriber import groq_transcriber
+        import tempfile
+        import httpx
+        import os
+        
+        # Get existing log
+        result = supabase_client.admin.table("voice_logs").select("*").eq(
+            "id", log_id
+        ).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Voice log not found")
+        
+        log = result.data[0]
+        
+        # Check if we have file_url
+        if not log.get("file_url"):
+            raise HTTPException(
+                status_code=400,
+                detail="No file URL available for re-transcription"
+            )
+        
+        # Download audio file
+        temp_file = None
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(log["file_url"], timeout=30.0)
+                response.raise_for_status()
+                audio_bytes = response.content
+            
+            # Save to temp file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as temp:
+                temp.write(audio_bytes)
+                temp_file = temp.name
+            
+            # Re-transcribe
+            transcription = await groq_transcriber.transcribe_with_groq(temp_file)
+            
+            if not transcription:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Re-transcription failed"
+                )
+            
+            # Update database
+            update_data = {
+                "transcription": transcription["text"],
+                "language": transcription.get("language"),
+                "confidence": transcription.get("confidence"),
+                "model_used": transcription.get("model_used"),
+                "meta": {
+                    **log.get("meta", {}),
+                    "retranscribed_at": datetime.now().isoformat(),
+                    "previous_transcription": log.get("transcription")
+                },
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            updated = supabase_client.admin.table("voice_logs").update(
+                update_data
+            ).eq("id", log_id).execute()
+            
+            logger.info(f"✅ Re-transcribed voice log: {log_id}")
+            
+            return {
+                "success": True,
+                "message": "Voice log re-transcribed successfully",
+                "data": updated.data[0] if updated.data else None
+            }
+            
+        finally:
+            # Clean up temp file
+            if temp_file and os.path.exists(temp_file):
+                os.remove(temp_file)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error re-transcribing voice log: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/voice_logs/{log_id}")
+async def delete_voice_log(log_id: str):
+    """Delete a voice log.
+    
+    Args:
+        log_id: Voice log UUID
+        
+    Returns:
+        Success message
+    """
+    try:
+        # TODO: Check admin access
+        
+        # Delete from database
+        result = supabase_client.admin.table("voice_logs").delete().eq(
+            "id", log_id
+        ).execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Voice log not found")
+        
+        logger.info(f"🗑️ Deleted voice log: {log_id}")
+        
+        return {
+            "success": True,
+            "message": "Voice log deleted successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting voice log: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

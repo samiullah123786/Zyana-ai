@@ -348,20 +348,31 @@ async def telegram_webhook(data: dict, background_tasks: BackgroundTasks):
 
 
 async def _handle_voice_message(voice_data: dict, user_id: str, background_tasks: BackgroundTasks):
-    """Handle voice message transcription.
+    """Handle voice message transcription using Groq Whisper API.
     
     Args:
         voice_data: Telegram voice message data
         user_id: Telegram user ID
         background_tasks: Background tasks manager
     """
+    import tempfile
+    import os
+    import uuid
+    from datetime import datetime
+    from services.groq_transcriber import groq_transcriber
+    from clients.supabase_client import supabase_client
+    from config import settings
+    import httpx
+    
+    temp_file = None
+    
     try:
-        from services.voice_transcriber import voice_transcriber
-        from config import settings
-        import httpx
-        
         # Get file from Telegram
         file_id = voice_data["file_id"]
+        file_size = voice_data.get("file_size", 0)
+        duration = voice_data.get("duration", 0)
+        
+        logger.info(f"🎙️ Processing voice message: {file_id} ({file_size} bytes, {duration}s)")
         
         # Get file path from Telegram API
         async with httpx.AsyncClient() as client:
@@ -381,34 +392,110 @@ async def _handle_voice_message(voice_data: dict, user_id: str, background_tasks
             download_response = await client.get(file_url, timeout=30.0)
             audio_bytes = download_response.content
         
-        # Transcribe
-        transcript = await voice_transcriber.transcribe_telegram_voice(audio_bytes)
+        # Save to temporary file (Groq API needs file path)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as temp:
+            temp.write(audio_bytes)
+            temp_file = temp.name
         
-        if not transcript:
+        logger.info(f"📥 Downloaded voice file: {temp_file}")
+        
+        # Transcribe with Groq
+        transcription = await groq_transcriber.transcribe_telegram_voice(temp_file)
+        
+        if not transcription or not transcription.get("text"):
             await send_telegram_message(
                 user_id,
-                "❌ Sorry, I couldn't transcribe that voice message. Please try again or type your message."
+                "❌ Sorry, I couldn't transcribe that voice message. Please try speaking more clearly or type your message."
             )
             return
         
-        logger.info(f"Transcribed voice message: {transcript}")
+        transcript_text = transcription["text"]
+        detected_language = transcription.get("language", "unknown")
         
-        # Process transcript as regular message
+        logger.info(f"✅ Transcribed ({detected_language}): {transcript_text[:100]}...")
+        
+        # Get or create user in database
+        try:
+            user_result = supabase_client.admin.table("users").select("id").eq(
+                "telegram_id", user_id
+            ).limit(1).execute()
+            
+            if user_result.data:
+                internal_user_id = user_result.data[0]["id"]
+            else:
+                # Create new user
+                new_user = supabase_client.admin.table("users").insert({
+                    "telegram_id": user_id,
+                    "name": f"User {user_id[:8]}"
+                }).execute()
+                internal_user_id = new_user.data[0]["id"] if new_user.data else 1
+        except Exception as e:
+            logger.error(f"Error getting user: {e}")
+            internal_user_id = 1  # Fallback
+        
+        # Save to voice_logs table
+        try:
+            voice_log = {
+                "user_id": internal_user_id,
+                "source": "telegram_voice",
+                "file_url": None,  # TODO: Upload to Supabase Storage
+                "file_size_bytes": file_size,
+                "duration_seconds": duration,
+                "transcription": transcript_text,
+                "language": detected_language,
+                "confidence": transcription.get("confidence"),
+                "model_used": transcription.get("model_used", "whisper-large-v3-turbo"),
+                "meta": {
+                    "file_id": file_id,
+                    "telegram_file_path": file_path,
+                    "segments": transcription.get("segments", [])[:10],  # Store first 10 segments
+                    "telegram_user_id": user_id
+                }
+            }
+            
+            supabase_client.admin.table("voice_logs").insert(voice_log).execute()
+            logger.info(f"💾 Saved transcription to voice_logs")
+        except Exception as e:
+            logger.error(f"Error saving to voice_logs: {e}")
+        
+        # Send confirmation with transcript preview
+        preview = transcript_text if len(transcript_text) <= 200 else transcript_text[:200] + "..."
+        confirmation_msg = (
+            f"✅ I transcribed your voice note:\n\n"
+            f"\"{preview}\"\n\n"
+            f"Processing your request..."
+        )
+        await send_telegram_message(user_id, confirmation_msg)
+        
+        # Process transcript through existing parser as regular message
         webhook_msg = WebhookMessage(
             user_id=user_id,
-            message=transcript,
+            message=transcript_text,
             platform="telegram",
-            metadata={"from_voice": True}
+            metadata={
+                "from_voice": True,
+                "language": detected_language,
+                "duration": duration
+            }
         )
         
         await receive_message(webhook_msg, background_tasks)
         
     except Exception as e:
-        logger.error(f"Error handling voice message: {e}", exc_info=True)
+        logger.error(f"❌ Error handling voice message: {e}", exc_info=True)
         await send_telegram_message(
             user_id,
-            "❌ Sorry, there was an error processing your voice message. Please try again."
+            "❌ Sorry, there was an error processing your voice message. Please try again or type your message."
         )
+    
+    finally:
+        # Clean up temporary file
+        if temp_file and os.path.exists(temp_file):
+            try:
+                os.remove(temp_file)
+                logger.info(f"🗑️ Cleaned up temp file: {temp_file}")
+            except Exception as cleanup_error:
+                logger.error(f"Error cleaning up temp file: {cleanup_error}")
 
 
 async def _handle_telegram_command(command: str, user_id: str) -> str:

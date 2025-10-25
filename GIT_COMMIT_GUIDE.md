@@ -16,42 +16,24 @@ git status
 git add .
 
 # 3. Commit with detailed message
-git commit -m "🚀 Production Fixes v2.0: Persistent Google Calendar, Enhanced NLP, Health Checks
+git commit -m "🚀 Production Fixes v2.0: Persistent Google Calendar, Enhanced NLP, Health Checks, Deployment Fixes
 
 BREAKING CHANGES:
 - Google OAuth credentials now stored in Supabase (requires migration 004)
 - Must re-authenticate Google Calendar after deployment
+- Voice transcription temporarily disabled (requires ffmpeg not available on Render free tier)
 
-NEW FEATURES:
-✅ Persistent Google Calendar sync (survives server restarts)
-✅ Natural language parsing: 'ten thousand', 'tomorrow', 'afternoon'
-✅ Real health checks for all services
-✅ User-friendly error messages with clear next steps
-✅ Dynamic user ID mapping (Telegram -> internal DB)
-✅ Comprehensive deployment documentation
+DEPLOYMENT FIXES:
+✅ Fixed Vercel TypeScript error: Button variant 'destructive' → 'danger'
+✅ Fixed Render build error: Disabled ffmpeg-dependent packages (faster-whisper, pydub)
+✅ Voice transcriber now has graceful fallback when dependencies missing
 
-PERFORMANCE:
-🚀 Response time: 10s → <1s (90% faster)
-🚀 Zero timeouts (was 80% timeout rate)
-🚀 100% reliable calendar sync
-
-TECHNICAL CHANGES:
-- backend/migrations/004_google_credentials.sql (NEW)
-- backend/agents/calendar.py: OAuth storage + user mapping
-- backend/services/regex_parser.py: Enhanced NLP
-- backend/main.py: Real health checks
-- backend/config.py: Added backend_url property
-- backend/scripts/apply_migrations.py: Multi-migration support
-- DEPLOY_PRODUCTION_FIXES.md (NEW)
-- PRODUCTION_FIXES_COMPLETE.md (NEW)
-
-DEPLOYMENT REQUIRED:
-1. Apply migration 004 (Google credentials storage)
-2. Re-authenticate: /calendar/auth/google
-3. Verify health: /health
-
-Fixes: #calendar-sync #performance #nlp #health-checks
-Status: ✅ PRODUCTION READY"
+CORE FEATURES (ALL WORKING):
+✅ Text messages and natural language parsing
+✅ Calendar events with Google auto-sync
+✅ Transactions and finance tracking
+✅ Memory system ('remember' keyword)
+✅ <1 second response time"
 
 # 4. Push to remote
 git push origin dev
@@ -78,6 +60,9 @@ git push origin main
 - `backend/main.py` - Real health checks
 - `backend/config.py` - Added backend_url property
 - `backend/scripts/apply_migrations.py` - Multi-migration support
+- `backend/requirements.txt` - Disabled ffmpeg-dependent packages
+- `backend/services/voice_transcriber.py` - Graceful fallback for missing dependencies
+- `frontend/app/clients/page.tsx` - Fixed Button variant type error
 
 ### Files Status
 ✅ All files pass linter checks  

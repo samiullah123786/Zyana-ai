@@ -11,6 +11,19 @@ class Settings(BaseSettings):
     # Fal AI
     fal_api_key: str = Field(..., alias="FAL_API_KEY")
     
+    # Groq AI (Whisper Transcription)
+    groq_api_key: str = Field(..., alias="GROQ_API_KEY")
+    groq_transcribe_model: str = Field(
+        default="whisper-large-v3-turbo",
+        alias="GROQ_TRANSCRIBE_MODEL"
+    )
+    max_chunk_seconds: int = Field(default=180, alias="MAX_CHUNK_SECONDS")
+    whisper_local_enabled: bool = Field(default=False, alias="WHISPER_LOCAL_ENABLED")
+    voice_storage_provider: str = Field(
+        default="supabase",
+        alias="VOICE_STORAGE_PROVIDER"
+    )  # Options: "supabase", "s3", "local"
+    
     # Telegram
     telegram_bot_token: str = Field(..., alias="TELEGRAM_BOT_TOKEN")
     
