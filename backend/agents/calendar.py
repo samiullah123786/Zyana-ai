@@ -280,10 +280,10 @@ class CalendarAgent:
                         event_time = datetime_time(hour=hour, minute=0)
                         break
                     elif len(match.groups()) == 2:  # 24-hour format
-                    hour = int(match.group(1))
-                    minute = int(match.group(2))
-                    event_time = datetime_time(hour=hour, minute=minute)
-                    break
+                        hour = int(match.group(1))
+                        minute = int(match.group(2))
+                        event_time = datetime_time(hour=hour, minute=minute)
+                        break
         
         return event_date, event_time
     
