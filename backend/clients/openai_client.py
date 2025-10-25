@@ -79,6 +79,23 @@ class OpenAIClient:
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
             raise
+    
+    async def embed(self, texts: list[str], model: str = "text-embedding-3-small") -> list[list[float]]:
+        """Generate embeddings for multiple texts."""
+        if not self.enabled:
+            raise Exception("OpenAI client not enabled")
+        
+        try:
+            response = await self.client.embeddings.create(model=model, input=texts)
+            return [item.embedding for item in response.data]
+        except Exception as e:
+            logger.error(f"OpenAI embedding error: {e}")
+            raise
+    
+    async def embed_single(self, text: str, model: str = "text-embedding-3-small") -> list[float]:
+        """Generate embedding for a single text."""
+        embeddings = await self.embed([text], model=model)
+        return embeddings[0] if embeddings else []
 
 
 # Global client instance

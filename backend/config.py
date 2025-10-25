@@ -76,7 +76,8 @@ class Settings(BaseSettings):
     owner_name: str = Field(default="Sami", alias="OWNER_NAME")
     
     # Memory & Learning Pipeline
-    embedding_provider: str = Field(default="openai", alias="EMBEDDING_PROVIDER")  # "fal" or "openai"
+    openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
+    embedding_provider: str = Field(default="openai", alias="EMBEDDING_PROVIDER")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     mirror_embed_k: int = Field(default=5, alias="MIRROR_EMBED_K")
     memory_summary_days: int = Field(default=90, alias="MEMORY_SUMMARY_DAYS")
