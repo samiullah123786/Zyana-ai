@@ -69,20 +69,11 @@ class MessageParser:
             if is_memory:
                 logger.info("💾 Memory request detected - will save to long-term memory")
             
-            # Try Claude AI for intelligent parsing (if available)
-            if HAS_CLAUDE:
-                try:
-                    parsed_data = await self._parse_with_claude(message, context)
-                    parsed_data["is_memory_request"] = is_memory
-                    logger.info(f"✅ Claude AI parsed successfully")
-                except Exception as e:
-                    logger.warning(f"⚠️  Claude AI failed: {e}, using regex fallback")
-                    parsed_data = regex_parser.parse(message)
-                    parsed_data["is_memory_request"] = is_memory
-            else:
-                # Fallback to regex parser
-                parsed_data = regex_parser.parse(message)
-                parsed_data["is_memory_request"] = is_memory
+            # Use FAST regex parser (Claude via FAL AI is too slow - 10s timeouts)
+            # TODO: Re-enable Claude when we have direct Anthropic API (not via FAL AI)
+            parsed_data = regex_parser.parse(message)
+            parsed_data["is_memory_request"] = is_memory
+            logger.info(f"✅ Regex parser (instant, reliable)")
             
             # SAFETY: Force date=None for calendar events
             if parsed_data.get("intent") == "calendar" and parsed_data.get("date"):

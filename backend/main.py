@@ -98,19 +98,49 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint for monitoring."""
-    # TODO: Check database connectivity
-    # TODO: Check Redis connectivity
-    # TODO: Check Qdrant connectivity
-    return {
+    """Health check endpoint for monitoring - checks all critical services."""
+    from clients.supabase_client import supabase_client
+    from clients.qdrant_client import qdrant_client
+    from agents.calendar import calendar_agent
+    
+    health_status = {
         "status": "healthy",
-        "services": {
-            "database": "ok",
-            "redis": "ok",
-            "qdrant": "ok",
-            "fal_ai": "ok"
-        }
+        "timestamp": datetime.now().isoformat(),
+        "services": {}
     }
+    
+    # Check Supabase (database)
+    try:
+        result = supabase_client.admin.table("users").select("id").limit(1).execute()
+        health_status["services"]["database"] = "ok"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        health_status["services"]["database"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # Check Qdrant (vector database)
+    try:
+        collections = qdrant_client.client.get_collections()
+        health_status["services"]["qdrant"] = "ok"
+    except Exception as e:
+        logger.error(f"Qdrant health check failed: {e}")
+        health_status["services"]["qdrant"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    # Check Google Calendar OAuth
+    try:
+        if calendar_agent.credentials:
+            health_status["services"]["google_calendar"] = "connected"
+        else:
+            health_status["services"]["google_calendar"] = "not_authenticated"
+    except Exception as e:
+        logger.error(f"Google Calendar health check failed: {e}")
+        health_status["services"]["google_calendar"] = f"error: {str(e)}"
+    
+    # Check Fal AI (non-critical, no actual call)
+    health_status["services"]["fal_ai"] = "available"
+    
+    return health_status
 
 
 # Include routers

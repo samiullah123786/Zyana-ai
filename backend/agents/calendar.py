@@ -30,27 +30,55 @@ class CalendarAgent:
     def __init__(self):
         """Initialize Calendar Agent."""
         self.credentials = None
+        self.user_id = 1  # Default user (personal bot)
         self._load_credentials()
     
-    def _load_credentials(self):
-        """Load Google OAuth credentials."""
-        if TOKEN_FILE.exists():
-            try:
-                self.credentials = Credentials.from_authorized_user_file(
-                    str(TOKEN_FILE), SCOPES
-                )
-            except Exception as e:
-                logger.error(f"Error loading credentials: {e}")
-    
-    def _save_credentials(self, creds: Credentials):
-        """Save credentials to file."""
+    def _load_credentials(self, user_id: int = 1):
+        """Load Google OAuth credentials from Supabase (persistent storage).
+        
+        Args:
+            user_id: User ID to load credentials for
+        """
         try:
-            TOKEN_FILE.parent.mkdir(exist_ok=True)
-            with TOKEN_FILE.open('w') as f:
-                f.write(creds.to_json())
-            self.credentials = creds
+            # Load from Supabase instead of file system (survives Render restarts)
+            result = supabase_client.admin.table("users").select(
+                "google_credentials, google_calendar_connected"
+            ).eq("id", user_id).execute()
+            
+            if result.data and result.data[0].get("google_credentials"):
+                creds_json = result.data[0]["google_credentials"]
+                self.credentials = Credentials.from_authorized_user_info(
+                    json.loads(creds_json), SCOPES
+                )
+                logger.info(f"✅ Loaded Google Calendar credentials from Supabase for user {user_id}")
+            else:
+                logger.info(f"ℹ️  No Google Calendar credentials found for user {user_id}")
+                self.credentials = None
         except Exception as e:
-            logger.error(f"Error saving credentials: {e}")
+            logger.error(f"Error loading credentials from Supabase: {e}")
+            self.credentials = None
+    
+    def _save_credentials(self, creds: Credentials, user_id: int = 1):
+        """Save credentials to Supabase (persistent across restarts).
+        
+        Args:
+            creds: Google OAuth credentials
+            user_id: User ID to save credentials for
+        """
+        try:
+            # Save to Supabase instead of file system
+            creds_json = creds.to_json()
+            
+            supabase_client.admin.table("users").update({
+                "google_credentials": creds_json,
+                "google_calendar_connected": True,
+                "google_calendar_email": creds.to_json()  # Extract email if available
+            }).eq("id", user_id).execute()
+            
+            self.credentials = creds
+            logger.info(f"✅ Saved Google Calendar credentials to Supabase for user {user_id}")
+        except Exception as e:
+            logger.error(f"Error saving credentials to Supabase: {e}")
     
     def get_auth_url(self) -> str:
         """Get Google OAuth authorization URL.
@@ -75,11 +103,12 @@ class CalendarAgent:
         auth_url, _ = flow.authorization_url(prompt='consent')
         return auth_url
     
-    async def handle_oauth_callback(self, code: str):
+    async def handle_oauth_callback(self, code: str, user_id: int = 1):
         """Handle OAuth callback and save credentials.
         
         Args:
             code: Authorization code from Google
+            user_id: User ID to associate credentials with (default: 1 for personal bot)
         """
         flow = Flow.from_client_config(
             {
@@ -96,7 +125,7 @@ class CalendarAgent:
         )
         
         flow.fetch_token(code=code)
-        self._save_credentials(flow.credentials)
+        self._save_credentials(flow.credentials, user_id=user_id)
     
     async def process(self, parsed: ParsedMessage, user_id: str) -> Dict[str, Any]:
         """Process calendar-related intents.
@@ -148,8 +177,11 @@ class CalendarAgent:
         if "with" in parsed.raw_text.lower():
             title = f"Meeting with {parsed.person or 'someone'}"
         
+        # Map Telegram user ID to internal user_id (always 1 for personal bot)
+        internal_user_id = await self._get_or_create_user(user_id)
+        
         event = EventCreate(
-            user_id=1,  # TODO: Map from auth
+            user_id=internal_user_id,  # Always 1 for personal bot (su8352282@gmail.com)
             title=title,
             start_time=start_time,
             end_time=end_time,
@@ -203,38 +235,51 @@ class CalendarAgent:
             # Simple day extraction (could be enhanced)
             event_date = today + timedelta(days=1)
         
-        # Extract time - look for patterns like "10am", "3pm", "10:30am", "15:00"
-        time_patterns = [
-            r'(\d{1,2}):(\d{2})\s*(am|pm)',  # 10:30am
-            r'(\d{1,2})\s*(am|pm)',           # 10am
-            r'(\d{1,2}):(\d{2})',             # 15:00
-        ]
-        
-        event_time = datetime_time(hour=9, minute=0)  # Default 9am
-        
-        for pattern in time_patterns:
-            match = re.search(pattern, message_lower)
-            if match:
-                if len(match.groups()) == 3:  # With minutes and am/pm
-                    hour = int(match.group(1))
-                    minute = int(match.group(2))
-                    period = match.group(3)
-                    if period == 'pm' and hour < 12:
-                        hour += 12
-                    elif period == 'am' and hour == 12:
-                        hour = 0
-                    event_time = datetime_time(hour=hour, minute=minute)
-                    break
-                elif len(match.groups()) == 2 and match.group(2) in ['am', 'pm']:  # Just hour with am/pm
-                    hour = int(match.group(1))
-                    period = match.group(2)
-                    if period == 'pm' and hour < 12:
-                        hour += 12
-                    elif period == 'am' and hour == 12:
-                        hour = 0
-                    event_time = datetime_time(hour=hour, minute=0)
-                    break
-                elif len(match.groups()) == 2:  # 24-hour format
+        # Natural language time words
+        if "morning" in message_lower:
+            event_time = datetime_time(hour=9, minute=0)
+        elif "noon" in message_lower or "midday" in message_lower:
+            event_time = datetime_time(hour=12, minute=0)
+        elif "afternoon" in message_lower:
+            event_time = datetime_time(hour=14, minute=0)  # 2pm
+        elif "evening" in message_lower:
+            event_time = datetime_time(hour=18, minute=0)  # 6pm
+        elif "night" in message_lower:
+            event_time = datetime_time(hour=20, minute=0)  # 8pm
+        else:
+            # Extract time - look for patterns like "10am", "3pm", "10:30am", "15:00", "10 o'clock"
+            time_patterns = [
+                r'(\d{1,2}):(\d{2})\s*(am|pm)',  # 10:30am
+                r'(\d{1,2})\s*o\'?clock\s*(am|pm|in the morning|in the afternoon|in the evening)?',  # 10 o'clock
+                r'(\d{1,2})\s*(am|pm)',           # 10am
+                r'(\d{1,2}):(\d{2})',             # 15:00
+            ]
+            
+            event_time = datetime_time(hour=9, minute=0)  # Default 9am
+            
+            for pattern in time_patterns:
+                match = re.search(pattern, message_lower)
+                if match:
+                    if len(match.groups()) == 3:  # With minutes and am/pm
+                        hour = int(match.group(1))
+                        minute = int(match.group(2))
+                        period = match.group(3)
+                        if period == 'pm' and hour < 12:
+                            hour += 12
+                        elif period == 'am' and hour == 12:
+                            hour = 0
+                        event_time = datetime_time(hour=hour, minute=minute)
+                        break
+                    elif len(match.groups()) == 2 and match.group(2) in ['am', 'pm']:  # Just hour with am/pm
+                        hour = int(match.group(1))
+                        period = match.group(2)
+                        if period == 'pm' and hour < 12:
+                            hour += 12
+                        elif period == 'am' and hour == 12:
+                            hour = 0
+                        event_time = datetime_time(hour=hour, minute=0)
+                        break
+                    elif len(match.groups()) == 2:  # 24-hour format
                     hour = int(match.group(1))
                     minute = int(match.group(2))
                     event_time = datetime_time(hour=hour, minute=minute)
@@ -292,9 +337,13 @@ class CalendarAgent:
         # Create in Google Calendar if authenticated
         if self.credentials:
             try:
+                logger.info(f"📅 Syncing to Google Calendar...")
                 google_event_id = await self._create_google_event(event)
+                logger.info(f"✅ Synced to Google Calendar: {google_event_id}")
             except Exception as e:
-                logger.error(f"Error creating Google event: {e}")
+                logger.error(f"❌ Error creating Google event: {e}", exc_info=True)
+        else:
+            logger.warning(f"⚠️  Google Calendar not connected - event only saved to database. Click the link in the message to add to Google Calendar manually.")
         
         # Create in database
         result = supabase_client.admin.table("events").insert({
@@ -312,15 +361,27 @@ class CalendarAgent:
         # Generate Google Calendar Add Link
         calendar_link = self._generate_google_calendar_link(event)
         
-        message = (
-            f"✅ Event created: {event.title}\n"
-            f"📅 {event.start_time.strftime('%Y-%m-%d at %I:%M %p')}\n\n"
-            f"➕ Add to your Google Calendar:\n"
-            f"{calendar_link}"
-        )
-        
+        # Build user-friendly message based on sync status
         if google_event_id:
-            message += "\n\n🔗 Already synced to your connected Google Calendar!"
+            # Successfully synced
+            message = (
+                f"✅ Event created: {event.title}\n"
+                f"📅 {event.start_time.strftime('%Y-%m-%d at %I:%M %p')} (Pakistan Time)\n"
+                f"🔗 Synced to your Google Calendar!\n\n"
+                f"If you don't see it, add manually:\n"
+                f"{calendar_link}"
+            )
+        else:
+            # Not synced (not authenticated)
+            message = (
+                f"✅ Event created: {event.title}\n"
+                f"📅 {event.start_time.strftime('%Y-%m-%d at %I:%M %p')} (Pakistan Time)\n\n"
+                f"⚠️  Google Calendar not connected.\n"
+                f"➕ Click to add to Google Calendar:\n"
+                f"{calendar_link}\n\n"
+                f"💡 To auto-sync future events, authenticate at:\n"
+                f"{settings.backend_url}/calendar/auth/google"
+            )
         
         return {
             "success": True,
@@ -439,6 +500,40 @@ class CalendarAgent:
                 "message": f"Error syncing: {str(e)}",
                 "data": None
             }
+    
+    async def _get_or_create_user(self, telegram_id: str) -> int:
+        """Get or create user by telegram_id, always returning user_id=1 for personal bot.
+        
+        Args:
+            telegram_id: Telegram user identifier
+            
+        Returns:
+            Internal user_id (always 1 for personal bot)
+        """
+        try:
+            # Check if user exists
+            result = supabase_client.admin.table("users").select("id").eq(
+                "telegram_id", telegram_id
+            ).limit(1).execute()
+            
+            if result.data:
+                user_id = result.data[0]["id"]
+                logger.info(f"✅ Found existing user: telegram_id={telegram_id} -> user_id={user_id}")
+                return user_id
+            
+            # Create new user (should be user_id=1 for personal bot)
+            new_user = supabase_client.admin.table("users").insert({
+                "telegram_id": telegram_id,
+                "name": f"User {telegram_id[:8]}"
+            }).execute()
+            
+            user_id = new_user.data[0]["id"] if new_user.data else 1
+            logger.info(f"✅ Created new user: telegram_id={telegram_id} -> user_id={user_id}")
+            return user_id
+            
+        except Exception as e:
+            logger.error(f"Error getting/creating user: {e}")
+            return 1  # Fallback to user_id=1 for personal bot
 
 
 # Global instance

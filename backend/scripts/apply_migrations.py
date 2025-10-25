@@ -15,28 +15,39 @@ def apply_migrations():
     """Apply SQL migrations to Supabase."""
     logger.info("📊 Applying database migrations to Supabase...")
     
-    # Read migration file
-    migration_file = Path(__file__).parent.parent / "migrations" / "001_initial_schema.sql"
+    # Get all migration files
+    migrations_dir = Path(__file__).parent.parent / "migrations"
+    migration_files = sorted(migrations_dir.glob("*.sql"))
     
-    if not migration_file.exists():
-        logger.error(f"Migration file not found: {migration_file}")
+    if not migration_files:
+        logger.error(f"No migration files found in: {migrations_dir}")
         return False
     
-    logger.info(f"Reading migration: {migration_file}")
-    sql = migration_file.read_text(encoding="utf-8")
+    logger.info(f"Found {len(migration_files)} migration(s)")
     
     try:
         # Execute SQL using Supabase RPC or direct connection
         # Note: Supabase Python client doesn't support raw SQL execution
         # We need to use the SQL Editor in Supabase dashboard or use psycopg2
         
-        logger.info("⚠️  Please apply the migration manually via Supabase SQL Editor:")
+        logger.info("⚠️  Please apply migrations manually via Supabase SQL Editor:")
         logger.info(f"   1. Go to: {settings.supabase_url}/project/_/sql")
-        logger.info(f"   2. Copy contents from: {migration_file}")
-        logger.info("   3. Paste and run the SQL")
+        logger.info("   2. Copy and run each migration in order:")
+        logger.info("")
+        
+        for i, migration_file in enumerate(migration_files, 1):
+            logger.info(f"   {i}. {migration_file.name}")
+        
         logger.info("")
         logger.info("Alternatively, use psql:")
-        logger.info(f"   psql {settings.postgres_conn} < {migration_file}")
+        for migration_file in migration_files:
+            logger.info(f"   psql $POSTGRES_CONN < backend/migrations/{migration_file.name}")
+        
+        logger.info("")
+        logger.info("📝 Latest migration (004): Adds Google OAuth credentials storage")
+        logger.info("   - Adds google_credentials column to users table")
+        logger.info("   - Adds google_calendar_connected flag")
+        logger.info("   - Required for persistent Google Calendar auto-sync!")
         
         return True
         

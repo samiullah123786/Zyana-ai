@@ -76,6 +76,17 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production mode."""
         return self.environment == "production"
+    
+    @property
+    def backend_url(self) -> str:
+        """Get backend URL based on environment."""
+        if self.webhook_url:
+            # If webhook URL is set, derive backend URL from it
+            return self.webhook_url.replace("/webhook/telegram", "")
+        elif self.is_production:
+            return "https://zyana-backend.onrender.com"
+        else:
+            return f"http://{self.backend_host}:{self.backend_port}"
 
 
 # Global settings instance

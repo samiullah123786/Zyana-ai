@@ -77,7 +77,30 @@ class RegexParser:
         }
     
     def _extract_amount(self, message: str) -> Optional[float]:
-        """Extract amount from message."""
+        """Extract amount from message (supports natural language numbers)."""
+        message_lower = message.lower()
+        
+        # Natural language numbers
+        word_to_number = {
+            'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+            'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+            'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
+            'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
+            'eighty': 80, 'ninety': 90, 'hundred': 100, 'thousand': 1000,
+            'lakh': 100000, 'lac': 100000, 'million': 1000000
+        }
+        
+        # Try natural language patterns first
+        # e.g., "ten thousand", "five hundred", "fifty thousand"
+        for word_mult in ['lakh', 'lac', 'thousand', 'hundred', 'million']:
+            pattern = r'(' + '|'.join(word_to_number.keys()) + r')?\s*' + word_mult
+            match = re.search(pattern, message_lower)
+            if match:
+                multiplier = word_to_number.get(word_mult, 1)
+                base = word_to_number.get(match.group(1), 1) if match.group(1) else 1
+                return float(base * multiplier)
+        
         # Pattern for amounts like: 10000, 10,000, 10k, $100, Rs 100
         patterns = [
             r'(?:rs\.?|pkr|usd|\$|€|£)\s*(\d{1,3}(?:,\d{3})*(?:\.\d+)?)',  # Rs 10,000
@@ -87,12 +110,12 @@ class RegexParser:
         ]
         
         for pattern in patterns:
-            match = re.search(pattern, message.lower())
+            match = re.search(pattern, message_lower)
             if match:
                 amount_str = match.group(1).replace(',', '')
                 
                 # Handle 'k' suffix
-                if 'k' in message.lower()[match.end()-2:match.end()]:
+                if 'k' in message_lower[match.end()-2:match.end()]:
                     return float(amount_str) * 1000
                 
                 return float(amount_str)
@@ -154,30 +177,46 @@ class RegexParser:
         return None
     
     def _determine_intent(self, message: str, person: Optional[str], amount: Optional[float]) -> str:
-        """Determine message intent."""
+        """Determine message intent - SMART pattern matching."""
+        message_lower = message.lower()
+        
         # Calendar keywords - check FIRST (highest priority)
-        if any(word in message for word in ['meeting', 'book', 'schedule', 'appointment', 'call', 'event', 'remind']):
+        calendar_keywords = ['meeting', 'book', 'schedule', 'appointment', 'call', 'event', 'remind', 'calendar']
+        if any(word in message_lower for word in calendar_keywords):
             return "calendar"
         
-        # Loan keywords
-        if any(word in message for word in ['lent', 'loan', 'borrowed', 'lend']):
+        # Loan keywords - expanded for natural language
+        loan_keywords = ['lent', 'loan', 'borrowed', 'lend', 'owe', 'owes', 'debt', 'gave.*loan', 'borrowed from']
+        if any(word in message_lower for word in loan_keywords):
             return "loan"
         
         # Repayment keywords
-        if any(word in message for word in ['repaid', 'repay', 'returned', 'paid back']):
+        repay_keywords = ['repaid', 'repay', 'returned', 'paid back', 'got back', 'received back']
+        if any(word in message_lower for word in repay_keywords):
             return "repayment"
         
-        # Transaction keywords
-        if any(word in message for word in ['gave', 'paid', 'received', 'income', 'expense', 'spent', 'bought']):
+        # Transaction keywords - expanded for natural language
+        transaction_keywords = [
+            'gave', 'paid', 'received', 'income', 'expense', 'spent', 'bought',
+            'got', 'from', 'for', 'to', 'given', 'taken', 'collected', 'earned',
+            'salary', 'purchase', 'sold', 'sale'
+        ]
+        if any(word in message_lower for word in transaction_keywords):
             return "transaction"
         
         # Query keywords
-        if any(word in message for word in ['how much', 'what is', 'show me', 'tell me']):
+        query_keywords = ['how much', 'what is', 'show me', 'tell me', 'check', 'status']
+        if any(word in message_lower for word in query_keywords):
             return "query"
         
         # Report keywords
-        if any(word in message for word in ['report', 'summary', 'balance']):
+        report_keywords = ['report', 'summary', 'balance', 'total', 'overview']
+        if any(word in message_lower for word in report_keywords):
             return "report"
+        
+        # Default to transaction if amount AND person present
+        if amount and person:
+            return "transaction"
         
         # Default to transaction if amount is present
         if amount:
@@ -186,19 +225,41 @@ class RegexParser:
         return "other"
     
     def _determine_type(self, message: str, intent: str) -> Optional[str]:
-        """Determine transaction type."""
+        """Determine transaction type - SMART pattern matching."""
         if intent != "transaction":
             return None
         
-        # Income keywords
-        if any(word in message for word in ['received', 'income', 'earned', 'got', 'from']):
+        message_lower = message.lower()
+        
+        # Income patterns - receiving money
+        income_patterns = [
+            'received', 'income', 'earned', 'got', 'collected', 
+            'i got', 'i received', 'received from', 'got from',
+            'came in', 'incoming', 'payment from', 'paid by',
+            'salary', 'wage', 'profit', 'revenue', 'sales'
+        ]
+        if any(pattern in message_lower for pattern in income_patterns):
             return "income"
         
-        # Expense keywords
-        if any(word in message for word in ['paid', 'spent', 'bought', 'gave', 'expense', 'for']):
+        # Expense patterns - giving money
+        expense_patterns = [
+            'paid', 'spent', 'bought', 'gave', 'expense', 
+            'i gave', 'i paid', 'paid for', 'gave to',
+            'purchased', 'spending', 'cost', 'fee',
+            'bill', 'subscription', 'rent'
+        ]
+        if any(pattern in message_lower for pattern in expense_patterns):
             return "expense"
         
-        return "expense"  # Default
+        # Smart detection: if "from" appears, likely income
+        if ' from ' in message_lower:
+            return "income"
+        
+        # Smart detection: if "to" or "for" appears, likely expense  
+        if ' to ' in message_lower or ' for ' in message_lower:
+            return "expense"
+        
+        return "expense"  # Default to expense if unclear
     
     def _extract_currency(self, message: str) -> Optional[str]:
         """Extract currency from message."""
@@ -224,19 +285,53 @@ class RegexParser:
         return "PKR"  # Default
     
     def _extract_date(self, message: str) -> Optional[date]:
-        """Extract date from message."""
+        """Extract date from message (supports natural language)."""
         today = datetime.now().date()
+        message_lower = message.lower()
         
-        if "today" in message:
+        # Relative day keywords
+        if "today" in message_lower:
             return today
-        elif "yesterday" in message:
+        elif "yesterday" in message_lower:
             return today - timedelta(days=1)
-        elif "tomorrow" in message:
+        elif "tomorrow" in message_lower:
             return today + timedelta(days=1)
-        elif "last week" in message:
+        elif "day after tomorrow" in message_lower:
+            return today + timedelta(days=2)
+        elif "day before yesterday" in message_lower:
+            return today - timedelta(days=2)
+        
+        # Week-based patterns
+        elif "last week" in message_lower:
             return today - timedelta(days=7)
-        elif "this week" in message:
+        elif "next week" in message_lower:
+            return today + timedelta(days=7)
+        elif "this week" in message_lower:
             return today
+        
+        # "in X days" pattern
+        match = re.search(r'in\s+(\d+)\s+days?', message_lower)
+        if match:
+            days = int(match.group(1))
+            return today + timedelta(days=days)
+        
+        # Day of week patterns (e.g., "next Monday", "this Friday")
+        weekdays = {
+            'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+            'friday': 4, 'saturday': 5, 'sunday': 6
+        }
+        
+        for day_name, day_num in weekdays.items():
+            if f"next {day_name}" in message_lower:
+                days_ahead = day_num - today.weekday()
+                if days_ahead <= 0:  # Target day already passed this week
+                    days_ahead += 7
+                return today + timedelta(days=days_ahead)
+            elif f"this {day_name}" in message_lower:
+                days_ahead = day_num - today.weekday()
+                if days_ahead < 0:  # Already passed, use next week
+                    days_ahead += 7
+                return today + timedelta(days=days_ahead)
         
         return None  # Return None if no date mentioned
     
