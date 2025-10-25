@@ -95,15 +95,16 @@ class FalAIClient:
                     if not status_url:
                         raise Exception("No status URL in queue response")
                     
-                    # Poll for result (max 10 seconds for fast response)
-                    for attempt in range(5):  # 5 attempts, 2 seconds each
+                    # Poll for result (increased timeout to 30 seconds for complex LLM requests)
+                    max_attempts = 15  # 15 attempts, 2 seconds each = 30 seconds
+                    for attempt in range(max_attempts):
                         await asyncio.sleep(2)
                         
                         status_response = await client.get(status_url, headers=self.headers)
                         status_response.raise_for_status()
                         status_data = status_response.json()
                         
-                        logger.debug(f"Poll attempt {attempt + 1}: {status_data.get('status')}")
+                        logger.debug(f"Poll attempt {attempt + 1}/{max_attempts}: {status_data.get('status')}")
                         
                         if status_data.get("status") == "COMPLETED":
                             if "output" in status_data:
@@ -117,10 +118,11 @@ class FalAIClient:
                                     ]
                                 }
                         elif status_data.get("status") == "FAILED":
-                            raise Exception(f"FAL AI job failed: {status_data.get('error')}")
+                            error_msg = status_data.get('error', 'Unknown error')
+                            raise Exception(f"FAL AI job failed: {error_msg}")
                     
-                    # Timeout after 10 seconds
-                    raise Exception("FAL AI job timed out after 10 seconds")
+                    # Improved timeout message with debugging info
+                    raise Exception(f"FAL AI job timed out after {max_attempts * 2} seconds. Status URL: {status_url}")
                 
                 # Direct response (immediate result)
                 elif "output" in data:

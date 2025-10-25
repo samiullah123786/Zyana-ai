@@ -1,6 +1,11 @@
 """Qdrant client wrapper for vector storage."""
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from qdrant_client.models import (
+    Distance, 
+    VectorParams, 
+    PointStruct,
+    PayloadSchemaType
+)
 from config import settings
 import logging
 from typing import List, Dict, Any, Optional
@@ -24,13 +29,15 @@ class ZyanaQdrantClient:
         logger.info(f"Qdrant client initialized: {settings.qdrant_url}")
     
     def _ensure_collection(self):
-        """Ensure the Zyana memory collection exists."""
+        """Ensure the Zyana memory collection exists with proper indexes."""
         try:
             collections = self.client.get_collections().collections
             collection_names = [col.name for col in collections]
             
             if self.COLLECTION_NAME not in collection_names:
                 logger.info(f"Creating collection: {self.COLLECTION_NAME}")
+                
+                # Create collection with vector config
                 self.client.create_collection(
                     collection_name=self.COLLECTION_NAME,
                     vectors_config=VectorParams(
@@ -38,12 +45,48 @@ class ZyanaQdrantClient:
                         distance=Distance.COSINE
                     )
                 )
-                logger.info(f"Collection created: {self.COLLECTION_NAME}")
+                
+                # Create payload indexes for efficient filtering
+                logger.info(f"Creating payload indexes for {self.COLLECTION_NAME}")
+                self.client.create_payload_index(
+                    collection_name=self.COLLECTION_NAME,
+                    field_name="user_id",
+                    field_schema=PayloadSchemaType.KEYWORD
+                )
+                
+                self.client.create_payload_index(
+                    collection_name=self.COLLECTION_NAME,
+                    field_name="type",
+                    field_schema=PayloadSchemaType.KEYWORD
+                )
+                
+                logger.info(f"Collection and indexes created: {self.COLLECTION_NAME}")
             else:
                 logger.debug(f"Collection already exists: {self.COLLECTION_NAME}")
                 
         except Exception as e:
             logger.error(f"Error ensuring collection: {e}")
+            raise
+    
+    def recreate_collection_with_indexes(self):
+        """Recreate collection with proper indexes (for migration).
+        
+        WARNING: This will delete all existing vectors in the collection!
+        """
+        try:
+            # Delete existing collection
+            try:
+                self.client.delete_collection(collection_name=self.COLLECTION_NAME)
+                logger.info(f"Deleted existing collection: {self.COLLECTION_NAME}")
+            except Exception as e:
+                logger.warning(f"Could not delete collection (may not exist): {e}")
+            
+            # Recreate with indexes
+            self._ensure_collection()
+            logger.info("Collection recreated with proper indexes")
+            
+        except Exception as e:
+            logger.error(f"Error recreating collection: {e}")
             raise
     
     async def add_memory(
