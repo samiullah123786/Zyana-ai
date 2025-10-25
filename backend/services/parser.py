@@ -1,12 +1,14 @@
 """
-PRODUCTION-GRADE Message Parser
-================================
-Architecture: Regex-First with Optional AI Enhancement
+INTELLIGENT AI Parser with Claude Sonnet 3.5
+=============================================
+TRUE INTELLIGENCE: Understands ANY natural language sentence
+NO SYNTAX REQUIRED: Just talk naturally
 
-PRIMARY: Regex Parser (instant, 100% reliable)
-OPTIONAL: Claude Sonnet 3.5 (enhancement only, non-blocking)
-
-NO FAL AI - Too slow and unreliable for real-time chat
+Features:
+- 🧠 Claude AI for deep understanding
+- 💾 "Remember" keyword for memory storage  
+- 📚 Context learning from interactions
+- 🎯 Extracts structured data from any sentence
 """
 import json
 import logging
@@ -19,15 +21,17 @@ from services.regex_parser import regex_parser
 
 logger = logging.getLogger(__name__)
 
-# Try to import Claude (optional enhancement)
+# Try to import Claude (primary AI parser)
 try:
     from clients.claude_client import claude_client
     HAS_CLAUDE = claude_client.enabled
     if HAS_CLAUDE:
-        logger.info("✅ Claude AI available for enhancement")
-except:
+        logger.info("✅ Claude AI enabled for intelligent parsing")
+    else:
+        logger.warning("⚠️  Claude AI not available - using regex fallback")
+except Exception as e:
     HAS_CLAUDE = False
-    logger.info("ℹ️  Claude AI not available (using regex only)")
+    logger.warning(f"⚠️  Claude AI import failed: {e}")
 
 
 class MessageParser:
@@ -40,29 +44,47 @@ class MessageParser:
     
     async def parse(self, message: str, context: Optional[Dict[str, Any]] = None) -> ParsedMessage:
         """
-        PRODUCTION-GRADE PARSER
-        =======================
-        Parse message using INSTANT regex parser.
-        Claude AI enhancement is optional and non-blocking.
+        INTELLIGENT AI PARSER
+        =====================
+        Understands ANY natural language - no specific syntax required!
         
-        Performance: <100ms guaranteed
-        Reliability: 100% (no external dependencies)
+        Strategy:
+        1. Check for "remember" keyword → save to memory
+        2. Try Claude AI for intelligent understanding
+        3. Fall back to regex if Claude unavailable
         
         Args:
-            message: User message text
+            message: User message text (ANY natural language!)
             context: Optional context (user habits, recent messages, etc.)
             
         Returns:
             ParsedMessage with extracted fields
         """
         start_time = datetime.now()
-        logger.info(f"⚡ Parsing: '{message[:60]}...'")
+        logger.info(f"🧠 Intelligent parsing: '{message[:60]}...'")
         
         try:
-            # PRIMARY: Use regex parser (instant, reliable)
-            parsed_data = regex_parser.parse(message)
+            # Check for "remember" keyword - save to memory
+            is_memory = "remember" in message.lower()
+            if is_memory:
+                logger.info("💾 Memory request detected - will save to long-term memory")
             
-            # SAFETY: Force date=None for calendar events (they use event_time field)
+            # Try Claude AI for intelligent parsing (if available)
+            if HAS_CLAUDE:
+                try:
+                    parsed_data = await self._parse_with_claude(message, context)
+                    parsed_data["is_memory_request"] = is_memory
+                    logger.info(f"✅ Claude AI parsed successfully")
+                except Exception as e:
+                    logger.warning(f"⚠️  Claude AI failed: {e}, using regex fallback")
+                    parsed_data = regex_parser.parse(message)
+                    parsed_data["is_memory_request"] = is_memory
+            else:
+                # Fallback to regex parser
+                parsed_data = regex_parser.parse(message)
+                parsed_data["is_memory_request"] = is_memory
+            
+            # SAFETY: Force date=None for calendar events
             if parsed_data.get("intent") == "calendar" and parsed_data.get("date"):
                 logger.info(f"🗓️  Calendar event detected - clearing date field")
                 parsed_data["date"] = None
@@ -82,7 +104,8 @@ class MessageParser:
             logger.info(
                 f"✅ Parsed in {elapsed:.3f}s | "
                 f"Intent: {parsed_message.intent} | "
-                f"Confidence: {parsed_message.confidence:.2f}"
+                f"Confidence: {parsed_message.confidence:.2f} | "
+                f"Memory: {is_memory}"
             )
             
             return parsed_message
@@ -97,6 +120,93 @@ class MessageParser:
                 confidence=0.0
             )
     
+    async def _parse_with_claude(self, message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Use Claude AI to intelligently parse any natural language message.
+        
+        Claude understands:
+        - "I got 50k from my client yesterday" → transaction
+        - "Ahmad owes me ten thousand" → loan
+        - "Got payment from Vidify today" → transaction  
+        - "Meeting with boss tomorrow 3pm" → calendar
+        - ANY natural way of speaking!
+        
+        Args:
+            message: Natural language message
+            context: User context (habits, history)
+            
+        Returns:
+            Parsed data dictionary
+        """
+        # Build intelligent prompt for Claude
+        system_prompt = """You are an AI assistant that extracts structured financial and calendar data from natural language.
+
+Your job: Parse ANY sentence into structured JSON, no matter how it's written.
+
+Extract these fields:
+- intent: transaction, loan, repayment, calendar, query, other
+- amount: numeric value (if mentioned)
+- currency: PKR, USD, etc. (default PKR if in Pakistan)
+- business: company/business name
+- person: person's name  
+- type: income or expense (for transactions)
+- category: what it's for (salary, fuel, software, etc.)
+- description: brief summary
+- date: only if EXPLICITLY mentioned (today, yesterday, tomorrow, etc.)
+
+IMPORTANT RULES:
+1. Be flexible - understand ANY way of saying things
+2. If date not mentioned, leave it null
+3. Infer intent from context (money = transaction, owe = loan, etc.)
+4. Extract person names even if casual ("got money from Ali")
+5. Understand Pakistani/Urdu English mix
+6. Currency defaults to PKR if not specified
+
+Examples:
+"I got 50k from my client yesterday" → {"intent":"transaction","type":"income","amount":50000,"currency":"PKR","date":"yesterday"}
+"Ahmad owes me ten thousand" → {"intent":"loan","amount":10000,"person":"Ahmad","currency":"PKR"}
+"Meeting with boss tomorrow at 3" → {"intent":"calendar","person":"boss","description":"Meeting"}
+"Paid 3000 for fuel today" → {"intent":"transaction","type":"expense","amount":3000,"category":"fuel","date":"today"}"""
+
+        user_prompt = f"""Parse this message into JSON:
+
+"{message}"
+
+Return ONLY valid JSON, no explanation."""
+
+        try:
+            # Call Claude via FAL AI
+            response = await claude_client.chat_simple(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=0.1,  # Low temperature for consistent extraction
+                max_tokens=500
+            )
+            
+            # Clean and parse response
+            response_clean = response.strip()
+            if response_clean.startswith("```"):
+                # Remove markdown code blocks
+                lines = response_clean.split("\n")
+                response_clean = "\n".join([l for l in lines if not l.startswith("```")])
+                response_clean = response_clean.replace("json", "").strip()
+            
+            # Parse JSON
+            parsed_data = json.loads(response_clean)
+            
+            # Ensure required fields
+            parsed_data.setdefault("raw_text", message)
+            parsed_data.setdefault("confidence", 0.9)  # High confidence from Claude
+            parsed_data.setdefault("missing_fields", [])
+            
+            logger.info(f"🧠 Claude extracted: {parsed_data}")
+            return parsed_data
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Claude returned invalid JSON: {response}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Claude parsing error: {e}")
+            raise
     
     def _infer_date(self, parsed: ParsedMessage) -> ParsedMessage:
         """Infer date from relative terms if not set.

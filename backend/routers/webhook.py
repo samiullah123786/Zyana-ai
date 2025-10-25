@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 import logging
+from datetime import datetime
 
 from models.schemas import WebhookMessage, AgentResponse
 from services.parser import message_parser
@@ -107,7 +108,45 @@ async def receive_message(
             context={"user_id": webhook_msg.user_id}
         )
         
-        logger.info(f"Parsed message: intent={parsed.intent}, confidence={parsed.confidence}")
+        logger.info(f"Parsed message: intent={parsed.intent}, confidence={parsed.confidence}, memory={parsed.is_memory_request}")
+        
+        # Handle "remember" requests - save to long-term memory
+        if parsed.is_memory_request:
+            from memory.embed import memory_service
+            try:
+                # Remove "remember" from text for clean storage
+                clean_text = parsed.raw_text.lower().replace("remember", "").replace("that", "").strip()
+                clean_text = clean_text if clean_text else parsed.raw_text
+                
+                # Save to memory
+                await memory_service.add_memory(
+                    content=clean_text,
+                    metadata={
+                        "type": "user_note",
+                        "user_id": webhook_msg.user_id,
+                        "intent": parsed.intent,
+                        "timestamp": datetime.now().isoformat()
+                    }
+                )
+                logger.info(f"💾 Saved to long-term memory: {clean_text[:50]}...")
+                
+                # Send confirmation
+                memory_response = f"✅ Got it! I'll remember: \"{clean_text}\"\n\nI've saved this to my long-term memory."
+                if webhook_msg.platform == "telegram":
+                    background_tasks.add_task(
+                        send_telegram_message,
+                        webhook_msg.user_id,
+                        memory_response
+                    )
+                
+                return JSONResponse(content={
+                    "status": "success",
+                    "message": memory_response,
+                    "memory_saved": True
+                })
+            except Exception as e:
+                logger.error(f"Error saving memory: {e}")
+                # Continue processing normally if memory save fails
         
         # Check if we need more information
         if parsed.missing_fields:

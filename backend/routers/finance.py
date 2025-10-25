@@ -766,3 +766,110 @@ async def get_business_performance():
     except Exception as e:
         logger.error(f"Error getting business performance: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/dashboard-stats", response_model=dict)
+async def get_dashboard_stats():
+    """Get dashboard statistics with period comparisons.
+    
+    Returns:
+        Dashboard stats with percentage changes compared to previous period
+    """
+    try:
+        from datetime import datetime, timedelta
+        
+        # Calculate date ranges
+        today = datetime.now()
+        month_ago = today - timedelta(days=30)
+        two_months_ago = today - timedelta(days=60)
+        
+        # Current period (last 30 days)
+        current_transactions = supabase_client.admin.table("transactions").select(
+            "type, amount"
+        ).gte("date", month_ago.isoformat()).execute()
+        
+        # Previous period (30-60 days ago)
+        previous_transactions = supabase_client.admin.table("transactions").select(
+            "type, amount"
+        ).gte("date", two_months_ago.isoformat()).lte(
+            "date", month_ago.isoformat()
+        ).execute()
+        
+        # Calculate current totals
+        current_income = sum(t["amount"] for t in current_transactions.data if t["type"] == "income")
+        current_expenses = sum(t["amount"] for t in current_transactions.data if t["type"] == "expense")
+        
+        # Calculate previous totals
+        prev_income = sum(t["amount"] for t in previous_transactions.data if t["type"] == "income")
+        prev_expenses = sum(t["amount"] for t in previous_transactions.data if t["type"] == "expense")
+        
+        # Calculate percentage changes
+        revenue_change = ((current_income - prev_income) / prev_income * 100) if prev_income > 0 else 0
+        expense_change = ((current_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses > 0 else 0
+        
+        logger.info(f"Dashboard stats - Revenue: {current_income} ({revenue_change:+.1f}%), Expenses: {current_expenses} ({expense_change:+.1f}%)")
+        
+        return {
+            "total_balance": current_income - current_expenses,
+            "total_revenue": current_income,
+            "total_expenses": current_expenses,
+            "revenue_change": round(revenue_change, 1),
+            "expense_change": round(expense_change, 1),
+            "balance_change": round(revenue_change, 1)  # Simplified
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting dashboard stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/analytics/business-stats/{business_id}", response_model=dict)
+async def get_business_stats(business_id: int):
+    """Get business statistics with period comparisons.
+    
+    Args:
+        business_id: Business ID
+        
+    Returns:
+        Business stats with percentage changes compared to previous period
+    """
+    try:
+        from datetime import datetime, timedelta
+        
+        today = datetime.now()
+        month_ago = today - timedelta(days=30)
+        two_months_ago = today - timedelta(days=60)
+        
+        # Current period (last 30 days)
+        current = supabase_client.admin.table("transactions").select(
+            "type, amount"
+        ).eq("business_id", business_id).gte("date", month_ago.isoformat()).execute()
+        
+        # Previous period (30-60 days ago)
+        previous = supabase_client.admin.table("transactions").select(
+            "type, amount"
+        ).eq("business_id", business_id).gte(
+            "date", two_months_ago.isoformat()
+        ).lte("date", month_ago.isoformat()).execute()
+        
+        current_income = sum(t["amount"] for t in current.data if t["type"] == "income")
+        current_expenses = sum(t["amount"] for t in current.data if t["type"] == "expense")
+        prev_income = sum(t["amount"] for t in previous.data if t["type"] == "income")
+        prev_expenses = sum(t["amount"] for t in previous.data if t["type"] == "expense")
+        
+        revenue_change = ((current_income - prev_income) / prev_income * 100) if prev_income > 0 else 0
+        expense_change = ((current_expenses - prev_expenses) / prev_expenses * 100) if prev_expenses > 0 else 0
+        profit_change = revenue_change - expense_change
+        
+        logger.info(f"Business {business_id} stats - Revenue: {revenue_change:+.1f}%, Expenses: {expense_change:+.1f}%, Profit: {profit_change:+.1f}%")
+        
+        return {
+            "revenue_change": round(revenue_change, 1),
+            "expense_change": round(expense_change, 1),
+            "profit_change": round(profit_change, 1),
+            "balance_change": round(revenue_change, 1)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting business stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

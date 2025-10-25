@@ -57,7 +57,11 @@ async def list_events(
         
         result = query.order("start_time", desc=False).limit(limit).execute()
         
-        return result.data
+        return {
+            "success": True,
+            "events": result.data or [],
+            "count": len(result.data) if result.data else 0
+        }
         
     except Exception as e:
         logger.error(f"Error listing events: {e}")

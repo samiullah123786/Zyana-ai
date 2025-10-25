@@ -146,6 +146,9 @@ export function Navbar() {
               <Link href="/" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                 Dashboard
               </Link>
+              <Link href="/calendar" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                📅 Calendar
+              </Link>
               <Link href="/memory" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                 Memory Search
               </Link>

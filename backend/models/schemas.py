@@ -22,6 +22,7 @@ class ParsedMessage(BaseModel):
     raw_text: str
     missing_fields: List[str] = Field(default_factory=list)
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    is_memory_request: bool = Field(default=False)  # True if user says "remember"
     
     @field_validator("date", mode="before")
     @classmethod

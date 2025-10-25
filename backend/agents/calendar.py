@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timedelta, date
 from typing import Dict, Any, Optional
 from pathlib import Path
+import pytz
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -15,6 +16,9 @@ from clients.supabase_client import supabase_client
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+# Pakistan timezone
+PAKISTAN_TZ = pytz.timezone('Asia/Karachi')
 
 TOKEN_FILE = Path("config/google_token.json")
 SCOPES = ['https://www.googleapis.com/auth/calendar']
@@ -134,8 +138,9 @@ class CalendarAgent:
         # Extract date and time from message
         event_date, event_time = self._extract_datetime_from_message(parsed.raw_text)
         
-        # Create datetime objects
-        start_time = datetime.combine(event_date, event_time)
+        # Create datetime objects in Pakistan timezone
+        naive_datetime = datetime.combine(event_date, event_time)
+        start_time = PAKISTAN_TZ.localize(naive_datetime)
         end_time = start_time + timedelta(hours=1)
         
         # Extract title (person name or description)
@@ -166,7 +171,25 @@ class CalendarAgent:
         import re
         
         message_lower = message.lower()
-        today = date.today()
+        
+        # Get current time in Pakistan timezone
+        now_pk = datetime.now(PAKISTAN_TZ)
+        today = now_pk.date()
+        
+        # Handle "in X minutes/hours" patterns
+        if "in" in message_lower and ("minute" in message_lower or "hour" in message_lower):
+            # Extract number
+            match = re.search(r'in\s+(\d+)\s+(minute|hour)', message_lower)
+            if match:
+                amount = int(match.group(1))
+                unit = match.group(2)
+                
+                if unit == "minute":
+                    future_time = now_pk + timedelta(minutes=amount)
+                else:  # hour
+                    future_time = now_pk + timedelta(hours=amount)
+                
+                return future_time.date(), future_time.time()
         
         # Extract date
         event_date = today
@@ -219,6 +242,42 @@ class CalendarAgent:
         
         return event_date, event_time
     
+    def _generate_google_calendar_link(self, event: EventCreate) -> str:
+        """Generate a Google Calendar "Add Event" link.
+        
+        Args:
+            event: Event data
+            
+        Returns:
+            Google Calendar link
+        """
+        from urllib.parse import quote
+        
+        # Convert to UTC for Google Calendar link (it expects UTC)
+        start_time_utc = event.start_time.astimezone(pytz.UTC)
+        end_time_utc = event.end_time.astimezone(pytz.UTC)
+        
+        # Format datetime for Google Calendar (YYYYMMDDTHHmmssZ)
+        start_str = start_time_utc.strftime('%Y%m%dT%H%M%SZ')
+        end_str = end_time_utc.strftime('%Y%m%dT%H%M%SZ')
+        
+        # Build Google Calendar URL
+        base_url = "https://calendar.google.com/calendar/render"
+        params = [
+            f"action=TEMPLATE",
+            f"text={quote(event.title)}",
+            f"dates={start_str}/{end_str}",
+            f"ctz=Asia/Karachi",  # Set timezone to Pakistan
+        ]
+        
+        if event.description:
+            params.append(f"details={quote(event.description)}")
+        
+        if event.location:
+            params.append(f"location={quote(event.location)}")
+        
+        return f"{base_url}?{'&'.join(params)}"
+    
     async def create_event(self, event: EventCreate) -> Dict[str, Any]:
         """Create calendar event in DB and Google Calendar.
         
@@ -250,18 +309,24 @@ class CalendarAgent:
         
         db_event = result.data[0] if result.data else {}
         
+        # Generate Google Calendar Add Link
+        calendar_link = self._generate_google_calendar_link(event)
+        
         message = (
             f"✅ Event created: {event.title}\n"
-            f"📅 {event.start_time.strftime('%Y-%m-%d at %I:%M %p')}"
+            f"📅 {event.start_time.strftime('%Y-%m-%d at %I:%M %p')}\n\n"
+            f"➕ Add to your Google Calendar:\n"
+            f"{calendar_link}"
         )
         
         if google_event_id:
-            message += "\n🔗 Synced to Google Calendar"
+            message += "\n\n🔗 Already synced to your connected Google Calendar!"
         
         return {
             "success": True,
             "message": message,
-            "data": db_event
+            "data": db_event,
+            "calendar_link": calendar_link
         }
     
     async def _create_google_event(self, event: EventCreate) -> Optional[str]:

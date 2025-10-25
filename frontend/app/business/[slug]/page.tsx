@@ -77,6 +77,7 @@ export default function BusinessDetailPage() {
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month')
   const [revenueData, setRevenueData] = useState<ChartData[]>([])
   const [categoryData, setCategoryData] = useState<ChartData[]>([])
+  const [businessStats, setBusinessStats] = useState<any>(null)
 
   useEffect(() => {
     fetchBusinessData()
@@ -94,12 +95,15 @@ export default function BusinessDetailPage() {
       }
 
       // Fetch business summary and analytics
-      const [summary, transactions, monthlyTrend, categories] = await Promise.all([
+      const [summary, transactions, monthlyTrend, categories, statsData] = await Promise.all([
         api.getBusinessSummary(businessRes.id).catch(() => ({ total_income: 0, total_expenses: 0, balance: 0 })),
         api.getTransactions(businessRes.id).catch(() => []),
         api.getMonthlyTrend(businessRes.id, 6).catch(() => []),
-        api.getCategoryBreakdown(businessRes.id, 'income').catch(() => [])
+        api.getCategoryBreakdown(businessRes.id, 'income').catch(() => []),
+        api.getBusinessStats(businessRes.id).catch(() => null)
       ])
+
+      setBusinessStats(statsData)
 
       // Calculate profit
       const profit = (summary.total_income || 0) - (summary.total_expenses || 0)
@@ -206,28 +210,28 @@ export default function BusinessDetailPage() {
           <StatCard
             title="Current Balance"
             value={formatCurrency(business.balance)}
-            change={business.revenueChange}
+            change={businessStats?.balance_change}
             icon={DollarSign}
             gradient="bg-gradient-to-br from-blue-500 to-blue-600"
           />
           <StatCard
             title="Total Revenue"
             value={formatCurrency(business.revenue)}
-            change={business.revenueChange}
+            change={businessStats?.revenue_change}
             icon={TrendingUp}
             gradient="bg-gradient-to-br from-green-500 to-green-600"
           />
           <StatCard
             title="Total Expenses"
             value={formatCurrency(business.expenses)}
-            change={-3.2}
+            change={businessStats?.expense_change}
             icon={TrendingDown}
             gradient="bg-gradient-to-br from-orange-500 to-orange-600"
           />
           <StatCard
             title="Net Profit"
             value={formatCurrency(business.profit)}
-            change={22.5}
+            change={businessStats?.profit_change}
             icon={DollarSign}
             gradient="bg-gradient-to-br from-purple-500 to-purple-600"
           />

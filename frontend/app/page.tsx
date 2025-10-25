@@ -66,6 +66,7 @@ export default function Home() {
   const [revenueData, setRevenueData] = useState<ChartData[]>([])
   const [businessData, setBusinessData] = useState<ChartData[]>([])
   const [recentActivities, setRecentActivities] = useState<Activity[]>([])
+  const [stats, setStats] = useState<any>(null)
 
   useEffect(() => {
     fetchAllData()
@@ -74,14 +75,16 @@ export default function Home() {
   const fetchAllData = async () => {
     try {
       // Fetch all data in parallel
-      const [businessesRes, monthlyTrendRes, businessPerfRes, activitiesRes] = await Promise.all([
+      const [businessesRes, monthlyTrendRes, businessPerfRes, activitiesRes, statsRes] = await Promise.all([
         api.getBusinesses().catch(() => []),
         api.getMonthlyTrend().catch(() => []),
         api.getBusinessPerformance().catch(() => []),
-        api.getRecentActivities(undefined, 4).catch(() => [])
+        api.getRecentActivities(undefined, 4).catch(() => []),
+        api.getDashboardStats().catch(() => null)
       ])
 
       setBusinesses(businessesRes || [])
+      setStats(statsRes)
       
       // Format revenue data for chart
       if (monthlyTrendRes && monthlyTrendRes.length > 0) {
@@ -141,7 +144,7 @@ export default function Home() {
           <StatCard
             title="Total Balance"
             value={hasData ? formatCurrency(totalBalance) : 'N/A'}
-            change={hasData ? 12.5 : undefined}
+            change={stats?.balance_change}
             icon={DollarSign}
             gradient="bg-gradient-to-br from-blue-500 to-blue-600"
             delay={0}
@@ -149,7 +152,7 @@ export default function Home() {
           <StatCard
             title="Total Revenue"
             value={hasData ? formatCurrency(totalRevenue) : 'N/A'}
-            change={hasData ? 18.2 : undefined}
+            change={stats?.revenue_change}
             icon={TrendingUp}
             gradient="bg-gradient-to-br from-green-500 to-green-600"
             delay={0.1}
@@ -157,7 +160,7 @@ export default function Home() {
           <StatCard
             title="Total Expenses"
             value={hasData ? formatCurrency(totalExpenses) : 'N/A'}
-            change={hasData ? -5.4 : undefined}
+            change={stats?.expense_change}
             icon={Activity}
             gradient="bg-gradient-to-br from-orange-500 to-orange-600"
             delay={0.2}

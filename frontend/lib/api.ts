@@ -135,6 +135,15 @@ class ZyanaAPI {
   async getBusinessPerformance() {
     return this.request('/finance/analytics/business-performance')
   }
+
+  // Dashboard Stats
+  async getDashboardStats() {
+    return this.request('/finance/analytics/dashboard-stats')
+  }
+
+  async getBusinessStats(businessId: number) {
+    return this.request(`/finance/analytics/business-stats/${businessId}`)
+  }
 }
 
 export const api = new ZyanaAPI()
