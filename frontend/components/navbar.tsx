@@ -158,8 +158,11 @@ export function Navbar() {
               <Link href="/memory" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                 🧠 Memory Search
               </Link>
+              <Link href="/agents" className="block px-4 py-2 rounded-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all border-l-4 border-transparent hover:border-blue-600">
+                🤖 Multi-Agent Dashboard
+              </Link>
               <Link href="/agent-console" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                🤖 Agent Console
+                💬 Agent Console
               </Link>
               <Link href="/admin" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                 ⚙️ Admin

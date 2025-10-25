@@ -45,34 +45,30 @@ class ContextRetriever:
             from services.embeddings import embedding_service
             embedding = await embedding_service.embed_single(query_text)
             
-            # Calculate date range filter
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days_back)
+            # Search Qdrant with filters (use search_memory method)
+            filters = {
+                "must": [
+                    {"key": "user_id", "match": {"value": user_id}},
+                    {"key": "type", "match": {"value": "calendar"}}
+                ]
+            }
             
-            # Search Qdrant with filters
-            results = qdrant_client.search(
-                collection_name=self.collection_name,
+            results = await qdrant_client.search_memory(
                 query_vector=embedding,
                 limit=limit,
-                query_filter={
-                    "must": [
-                        {"key": "user_id", "match": {"value": user_id}},
-                        {"key": "type", "match": {"value": "calendar"}},
-                    ]
-                }
+                filters=filters
             )
             
             relevant_events = []
             
             for result in results:
-                payload = result.payload
                 relevant_events.append({
-                    'id': result.id,
-                    'text': payload.get('text', ''),
-                    'event_title': payload.get('event_title', ''),
-                    'event_date': payload.get('event_date', ''),
-                    'attendees': payload.get('attendees', []),
-                    'score': result.score
+                    'id': result.get('id', ''),
+                    'text': result.get('text', ''),
+                    'event_title': result.get('event_title', ''),
+                    'event_date': result.get('event_date', ''),
+                    'attendees': result.get('attendees', []),
+                    'score': result.get('score', 0)
                 })
             
             # Create context summary

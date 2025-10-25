@@ -400,7 +400,25 @@ export default function Home() {
         </div>
 
         {/* AI Features Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 animate-fade-in">
+          {/* Multi-Agent Dashboard - Featured */}
+          <Link href="/agents">
+            <Card className="h-full bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 text-white border-0 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 cursor-pointer">
+              <CardContent className="p-8">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3">
+                    <Activity className="w-8 h-8" />
+                  </div>
+                  <Badge variant="outline" className="text-white border-white/50 animate-pulse">✨ NEW</Badge>
+                </div>
+                <h3 className="text-2xl font-bold mb-2">🤖 Multi-Agent System</h3>
+                <p className="text-purple-100">
+                  9 specialized AI agents working 24/7. Calendar, Finance, Voice, Mirror Mode & more!
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+          
           <Link href="/memory">
             <Card className="h-full bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 cursor-pointer">
               <CardContent className="p-8">
@@ -427,7 +445,7 @@ export default function Home() {
                   </div>
                   <Badge variant="outline" className="text-white border-white/50">Live</Badge>
                 </div>
-                <h3 className="text-2xl font-bold mb-2">🤖 Agent Console</h3>
+                <h3 className="text-2xl font-bold mb-2">💬 Agent Console</h3>
                 <p className="text-blue-100">
                   Send commands directly to Zyana AI and get instant intelligent responses.
                 </p>

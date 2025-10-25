@@ -50,22 +50,13 @@ class RAGService:
             # Generate query embedding
             query_embedding = await embedding_service.embed_single(query)
             
-            # Build filter
-            filters = None
-            if timeframe_days:
-                cutoff_date = (datetime.now() - timedelta(days=timeframe_days)).isoformat()
-                filters = {
-                    "must": [
-                        {"key": "user_id", "match": {"value": user_id}},
-                        {"key": "date", "range": {"gte": cutoff_date}}
-                    ]
-                }
-            else:
-                filters = {
-                    "must": [
-                        {"key": "user_id", "match": {"value": user_id}}
-                    ]
-                }
+            # Build filter (date range filtering removed - Qdrant requires numeric timestamps)
+            # TODO: Add timestamp field as Unix time for proper date filtering
+            filters = {
+                "must": [
+                    {"key": "user_id", "match": {"value": user_id}}
+                ]
+            }
             
             # Search Qdrant
             results = await qdrant_client.search_memory(
