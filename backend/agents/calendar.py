@@ -164,6 +164,12 @@ class CalendarAgent:
         Returns:
             Response dict
         """
+        # Map Telegram user ID to internal user_id
+        internal_user_id = await self._get_or_create_user(user_id)
+        
+        # Reload credentials for this specific user (fixes multi-user bug)
+        self._load_credentials(user_id=internal_user_id)
+        
         # Extract date and time from message
         event_date, event_time = self._extract_datetime_from_message(parsed.raw_text)
         
@@ -176,9 +182,6 @@ class CalendarAgent:
         title = parsed.person if parsed.person else "Meeting"
         if "with" in parsed.raw_text.lower():
             title = f"Meeting with {parsed.person or 'someone'}"
-        
-        # Map Telegram user ID to internal user_id (always 1 for personal bot)
-        internal_user_id = await self._get_or_create_user(user_id)
         
         event = EventCreate(
             user_id=internal_user_id,  # Always 1 for personal bot (su8352282@gmail.com)

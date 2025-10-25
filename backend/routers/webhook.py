@@ -516,27 +516,31 @@ async def _handle_telegram_command(command: str, user_id: str) -> str:
     if cmd == "/start":
         return (
             "👋 Welcome to Zyana - Your JARVIS!\n\n"
-            "I'm not just an assistant - I'm your intelligent companion. I learn from every interaction and help you:\n\n"
-            "🧠 Smart Finance Tracking\n"
-            "• Automatically remember your businesses\n"
-            "• Learn your spending patterns\n"
-            "• Provide proactive insights\n\n"
-            "📊 Intelligent Analysis\n"
-            "• Generate smart financial insights\n"
-            "• Predict patterns\n"
-            "• Give personalized recommendations\n\n"
-            "🎯 Context-Aware Memory\n"
-            "• Remember important conversations\n"
-            "• Recall past transactions\n"
-            "• Understand your preferences\n\n"
-            "Just talk to me naturally:\n"
-            '"I lent Ahmad Rs 10,000 from Vidify"\n'
-            '"Show me my insights"\n'
-            '"What are my pending loans?"\n\n'
-            "Commands:\n"
-            "/insights - AI-powered insights\n"
-            "/status - Check balances\n"
-            "/help - Full command list"
+            "I'm your intelligent companion with superpowers! 🚀\n\n"
+            "✨ What I Can Do:\n\n"
+            "💰 **Finance & Business**\n"
+            "• Track transactions, loans, repayments\n"
+            "• Manage multiple businesses\n"
+            "• Generate invoices & track clients\n"
+            "• Smart financial insights\n\n"
+            "📅 **Calendar & Scheduling**\n"
+            "• Book meetings automatically\n"
+            "• Auto-sync to Google Calendar\n"
+            "• Track work sessions\n\n"
+            "🎙️ **Voice Messages**\n"
+            "• Send voice notes - I transcribe them!\n"
+            "• Powered by Groq Whisper AI\n\n"
+            "🧠 **Smart Features**\n"
+            "• Learn your patterns\n"
+            "• Remember important info (use 'remember')\n"
+            "• Context-aware responses\n"
+            "• Mirror Mode - follow your workday\n\n"
+            "💬 Talk to me naturally:\n"
+            '"Book meeting tomorrow at 10am"\n'
+            '"I gave Ali 5000 from Vidify"\n'
+            '"remember my password is xyz"\n'
+            '"Create invoice for ABC Corp"\n\n'
+            "Type /help for all commands! 🎯"
         )
     
     elif command == "/status":
@@ -557,26 +561,56 @@ async def _handle_telegram_command(command: str, user_id: str) -> str:
     elif command == "/help":
         return (
             "🤖 Zyana - Your JARVIS Assistant\n\n"
-            "💬 Talk naturally:\n"
+            "💬 **Natural Language Examples:**\n"
             "• 'Received 50k from milk sales today'\n"
-            "• 'I gave Indian $130 for anime videos'\n"
-            "• 'Ahmad owes me 10,000'\n"
-            "• 'Show me my insights'\n"
-            "• 'What did I spend on marketing?'\n\n"
-            "🎯 Smart Commands:\n"
-            "/start - Introduction\n"
+            "• 'Book meeting tomorrow at 3pm'\n"
+            "• 'remember my API key is xyz123'\n"
+            "• 'Create invoice for $5000'\n"
+            "• Send voice messages (auto-transcribed!)\n\n"
+            "📋 **All Commands:**\n\n"
+            "🏠 General:\n"
+            "/start - Welcome & introduction\n"
+            "/help - This help message\n\n"
+            "💰 Finance:\n"
             "/insights - AI-powered analysis 🧠\n"
             "/status - Quick balance check\n"
             "/report - Detailed financial report\n"
-            "/help - This help message\n\n"
-            "✨ I learn from every message and get smarter at helping you!"
+            "/list_invoices - View your invoices\n"
+            "/list_clients - View your clients\n\n"
+            "📅 Calendar:\n"
+            "/sync_calendar - Connect Google Calendar\n"
+            "Just say: 'Book meeting [when]'\n\n"
+            "🎙️ Voice:\n"
+            "Send any voice message - I'll transcribe it!\n\n"
+            "⚙️ Settings:\n"
+            "/toggle_mirror - Enable/disable mirror mode\n"
+            "/my_notifications - View scheduled alerts\n\n"
+            "✨ **Pro Tips:**\n"
+            "• Use 'remember' to save important info\n"
+            "• I learn from every interaction\n"
+            "• Voice messages work in any language\n"
+            "• Mirror mode tracks your workday automatically\n\n"
+            "🔗 Auto-sync: Calendar events → Google Calendar\n"
+            "Auth: https://zyana-backend.onrender.com/calendar/auth/google"
         )
     
     elif command == "/add_business":
         return "To add a new business, just tell me: 'Start new business called [Name]'"
     
     elif cmd == "/sync_calendar":
-        return "🗓️ Calendar sync coming soon! I'll let you know when it's ready."
+        from config import settings
+        auth_url = f"{settings.backend_url}/calendar/auth/google"
+        return (
+            "🗓️ **Google Calendar Auto-Sync Setup**\n\n"
+            "To enable automatic calendar syncing:\n\n"
+            "1️⃣ Click this link to authenticate:\n"
+            f"{auth_url}\n\n"
+            "2️⃣ Sign in with your Google account\n"
+            "3️⃣ Grant calendar permissions\n\n"
+            "✅ After setup, all events will auto-sync!\n\n"
+            "📌 Test it: 'Book meeting tomorrow at 10am'\n"
+            "Your event will automatically appear in Google Calendar!"
+        )
     
     elif cmd == "/list_invoices":
         from agents.invoice_tracker import invoice_tracker
