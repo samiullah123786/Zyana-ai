@@ -51,9 +51,26 @@ class CalendarAgent:
                     json.loads(creds_json), SCOPES
                 )
                 logger.info(f"✅ Loaded Google Calendar credentials from Supabase for user {user_id}")
+                return
+            
+            # FALLBACK: If this user doesn't have credentials, try to find ANY user with credentials
+            # This is for personal bot usage where all users share the same Google Calendar
+            logger.warning(f"⚠️  No credentials for user {user_id}, checking for any available credentials...")
+            fallback_result = supabase_client.admin.table("users").select(
+                "id, google_credentials, google_calendar_connected"
+            ).eq("google_calendar_connected", True).limit(1).execute()
+            
+            if fallback_result.data and fallback_result.data[0].get("google_credentials"):
+                creds_json = fallback_result.data[0]["google_credentials"]
+                self.credentials = Credentials.from_authorized_user_info(
+                    json.loads(creds_json), SCOPES
+                )
+                fallback_user_id = fallback_result.data[0]["id"]
+                logger.info(f"✅ Using fallback credentials from user {fallback_user_id} (personal bot mode)")
             else:
-                logger.info(f"ℹ️  No Google Calendar credentials found for user {user_id}")
+                logger.info(f"ℹ️  No Google Calendar credentials found in system")
                 self.credentials = None
+                
         except Exception as e:
             logger.error(f"Error loading credentials from Supabase: {e}")
             self.credentials = None

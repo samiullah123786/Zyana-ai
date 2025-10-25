@@ -126,20 +126,25 @@ async def google_auth():
 
 
 @router.get("/auth/google/callback")
-async def google_auth_callback(code: str):
+async def google_auth_callback(code: str, state: str = None):
     """Handle Google OAuth callback.
     
     Args:
         code: Authorization code from Google
+        state: Optional user identifier from OAuth state
         
     Returns:
         Success message
     """
     try:
-        await calendar_agent.handle_oauth_callback(code)
+        # Extract user_id from state if provided, otherwise default to 1
+        user_id = int(state) if state and state.isdigit() else 1
+        
+        await calendar_agent.handle_oauth_callback(code, user_id=user_id)
+        
         return {
             "success": True,
-            "message": "✅ Google Calendar connected successfully!"
+            "message": f"✅ Google Calendar connected successfully for user {user_id}!"
         }
         
     except Exception as e:
