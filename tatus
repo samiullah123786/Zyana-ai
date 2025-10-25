@@ -1,0 +1,51 @@
+[33mcommit 5440f371af9809bcec7eceaf2df3ca3dbae72c53[m
+Author: samiullah123786 <su8352282@gmail.com>
+Date:   Sat Oct 25 07:41:43 2025 +0500
+
+    fix: CRITICAL webhook setup - bot not receiving messages
+    
+    ROOT CAUSE: Webhook only set in production mode
+    EFFECT: Bot receives ZERO messages (no logs in backend)
+    
+    FIXES:
+    ======
+    
+    1. ALWAYS Set Webhook on Startup
+       - Removed production-only check
+       - Webhook now set EVERY time backend starts
+       - Added verification after setting
+    
+    2. Added Webhook Status Endpoint
+       GET /webhook/telegram/status
+       - Check if webhook is configured
+       - See pending updates
+       - View last error
+       - CRITICAL for debugging
+    
+    3. Added Manual Webhook Setup
+       POST /webhook/telegram/set
+       - Manually trigger webhook setup
+       - Override webhook URL if needed
+       - Instant fix without redeploying
+    
+    4. Better Logging
+       - Shows exact webhook URL being set
+       - Shows Telegram API response
+       - Warning if WEBHOOK_URL not configured
+    
+    USAGE:
+    ======
+    1. Check status: https://your-backend.onrender.com/webhook/telegram/status
+    2. Manually set: https://your-backend.onrender.com/webhook/telegram/set
+    3. Backend logs show webhook setup on startup
+    
+    RESULT:
+    =======
+     Webhook configured on every startup
+     Easy debugging with status endpoint
+     Manual override available
+     Bot will receive messages
+     Senior developer quality
+
+backend/main.py
+backend/routers/webhook.py

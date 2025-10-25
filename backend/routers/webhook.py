@@ -12,6 +12,72 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/telegram/status")
+async def telegram_status():
+    """Check Telegram webhook status and bot configuration.
+    
+    Use this endpoint to debug if your bot isn't receiving messages.
+    Returns: Webhook info from Telegram API
+    """
+    try:
+        from config import settings
+        import httpx
+        
+        url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/getWebhookInfo"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url)
+            data = response.json()
+            
+        return {
+            "status": "ok",
+            "message": "Webhook status fetched successfully",
+            "webhook_info": data.get("result", {}),
+            "backend_webhook_url": f"{settings.webhook_url}/webhook/telegram" if settings.webhook_url else "NOT CONFIGURED"
+        }
+    except Exception as e:
+        logger.error(f"Error fetching webhook status: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
+@router.post("/telegram/set")
+async def set_webhook_manual():
+    """Manually set Telegram webhook.
+    
+    Use this if the bot isn't receiving messages.
+    This will configure Telegram to send updates to your backend.
+    """
+    try:
+        from services.telegram_bot import set_telegram_webhook
+        from config import settings
+        
+        if not settings.webhook_url:
+            return {
+                "status": "error",
+                "message": "WEBHOOK_URL not configured in environment variables"
+            }
+        
+        webhook_url = f"{settings.webhook_url}/webhook/telegram"
+        result = await set_telegram_webhook(webhook_url)
+        
+        logger.info(f"✅ Webhook manually set to: {webhook_url}")
+        
+        return {
+            "status": "success",
+            "message": "Webhook set successfully",
+            "webhook_url": webhook_url,
+            "telegram_response": result
+        }
+    except Exception as e:
+        logger.error(f"Error setting webhook: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 @router.post("/message")
 async def receive_message(
     webhook_msg: WebhookMessage,
@@ -153,11 +219,13 @@ async def telegram_webhook(data: dict, background_tasks: BackgroundTasks):
     Returns:
         Success response
     """
-    logger.debug(f"Telegram webhook data: {data}")
+    # CRITICAL: Use INFO not DEBUG for production visibility
+    logger.info(f"📨 Telegram webhook received: update_id={data.get('update_id')}")
     
     try:
         # Extract message from Telegram update
         if "message" not in data:
+            logger.info("⏭️  No message in update, skipping")
             return {"ok": True}
         
         message = data["message"]
@@ -166,6 +234,7 @@ async def telegram_webhook(data: dict, background_tasks: BackgroundTasks):
         if "text" in message:
             user_id = str(message["from"]["id"])
             text = message["text"]
+            logger.info(f"Received message from telegram: {text}")
             
             # Handle commands
             if text.startswith("/"):

@@ -39,23 +39,42 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Initialize application on startup."""
-    logger.info("🚀 Starting Zyana AI Backend...")
-    logger.info(f"Environment: {settings.environment}")
-    logger.info(f"Backend URL: http://{settings.backend_host}:{settings.backend_port}")
-    
-    # Set up Telegram webhook if in production
-    if settings.is_production and settings.webhook_url:
-        from services.telegram_bot import set_telegram_webhook
+    try:
+        logger.info("="*60)
+        logger.info("🚀 Starting Zyana AI Backend...")
+        logger.info(f"Environment: {settings.environment}")
+        logger.info(f"Backend URL: http://{settings.backend_host}:{settings.backend_port}")
+        logger.info("="*60)
+        
+        # Test critical imports
         try:
-            webhook_url = f"{settings.webhook_url}/webhook/telegram"
-            result = await set_telegram_webhook(webhook_url)
-            logger.info(f"✅ Telegram webhook set: {result}")
+            from agents.finance import finance_agent
+            from agents.calendar import calendar_agent
+            from agents.router import main_agent
+            logger.info("✅ All agents imported successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to set Telegram webhook: {e}")
-    
-    # TODO: Initialize database connection pool
-    # TODO: Initialize Qdrant collection
-    # TODO: Verify external API connectivity
+            logger.error(f"❌ Agent import failed: {e}", exc_info=True)
+        
+        # Set up Telegram webhook ALWAYS (not just production)
+        if settings.webhook_url:
+            from services.telegram_bot import set_telegram_webhook
+            try:
+                webhook_url = f"{settings.webhook_url}/webhook/telegram"
+                logger.info(f"🔗 Setting webhook: {webhook_url}")
+                result = await set_telegram_webhook(webhook_url)
+                logger.info(f"✅ Telegram webhook set: {result}")
+            except Exception as e:
+                logger.error(f"❌ Failed to set Telegram webhook: {e}", exc_info=True)
+        else:
+            logger.warning("⚠️  No WEBHOOK_URL configured - bot won't receive messages!")
+        
+        logger.info("="*60)
+        logger.info("✅ Backend started successfully!")
+        logger.info("="*60)
+        
+    except Exception as e:
+        logger.error(f"❌ CRITICAL: Startup failed: {e}", exc_info=True)
+        # Don't crash - allow server to start for debugging
 
 
 @app.on_event("shutdown")
