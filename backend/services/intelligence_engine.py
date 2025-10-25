@@ -225,14 +225,13 @@ class IntelligenceEngine:
             return {}
     
     async def _find_related_memories(self, message: str, user_id: str, limit: int = 5) -> List[Dict]:
-        """Find related past memories using semantic search."""
-        try:
-            result = await memory_service.search(message, limit=limit)
-            return result.results if hasattr(result, 'results') else []
-            
-        except Exception as e:
-            logger.error(f"Error finding related memories: {e}")
-            return []
+        """Find related past memories using semantic search.
+        
+        DISABLED: Memory search uses FAL AI embeddings which cause 10s delays.
+        Keeping method for future when we have instant embeddings.
+        """
+        # TODO: Re-enable when we have fast embeddings (not FAL AI)
+        return []  # Instant response, no FAL AI calls
     
     async def _get_user_preferences(self, user_id: str) -> Dict[str, Any]:
         """Get user preferences and settings."""

@@ -12,79 +12,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/telegram/status")
-async def telegram_webhook_status():
-    """
-    Check Telegram webhook status.
-    CRITICAL for debugging webhook issues.
-    """
-    from services.telegram_bot import get_telegram_webhook_info
-    
-    try:
-        info = await get_telegram_webhook_info()
-        
-        webhook_data = info.get("result", {})
-        webhook_url = webhook_data.get("url", "NOT SET")
-        pending_update_count = webhook_data.get("pending_update_count", 0)
-        last_error_date = webhook_data.get("last_error_date")
-        last_error_message = webhook_data.get("last_error_message")
-        
-        status = "❌ NOT CONFIGURED" if not webhook_url or webhook_url == "" else "✅ ACTIVE"
-        
-        return {
-            "status": status,
-            "webhook_url": webhook_url,
-            "pending_updates": pending_update_count,
-            "last_error_date": last_error_date,
-            "last_error_message": last_error_message,
-            "full_info": webhook_data
-        }
-    except Exception as e:
-        logger.error(f"Error getting webhook status: {e}")
-        return {
-            "status": "❌ ERROR",
-            "error": str(e)
-        }
-
-
-@router.post("/telegram/set")
-async def set_telegram_webhook_manually(webhook_url: str = None):
-    """
-    Manually set Telegram webhook.
-    Use this if webhook is not auto-configured.
-    
-    Args:
-        webhook_url: Optional custom webhook URL (defaults to current backend URL)
-    """
-    from services.telegram_bot import set_telegram_webhook
-    from config import settings
-    
-    try:
-        # Use provided URL or construct from settings
-        if not webhook_url:
-            if not settings.webhook_url:
-                return {
-                    "success": False,
-                    "error": "No webhook_url provided and WEBHOOK_URL env var not set"
-                }
-            webhook_url = f"{settings.webhook_url}/webhook/telegram"
-        
-        logger.info(f"🔧 Manually setting webhook to: {webhook_url}")
-        result = await set_telegram_webhook(webhook_url)
-        
-        return {
-            "success": True,
-            "webhook_url": webhook_url,
-            "telegram_response": result
-        }
-    except Exception as e:
-        logger.error(f"Error setting webhook: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-
 @router.post("/message")
 async def receive_message(
     webhook_msg: WebhookMessage,
@@ -206,78 +133,65 @@ async def _generate_followup_question(parsed) -> str:
 
 @router.post("/telegram")
 async def telegram_webhook(data: dict, background_tasks: BackgroundTasks):
+    """Receive updates from Telegram Bot API.
+    
+    This endpoint receives Telegram updates in the format:
+    {
+        "update_id": 123,
+        "message": {
+            "message_id": 456,
+            "from": {"id": 789, "first_name": "User"},
+            "chat": {"id": 789, "type": "private"},
+            "text": "I lent Ahmad 10000"
+        }
+    }
+    
+    Args:
+        data: Telegram update data
+        background_tasks: FastAPI background tasks
+        
+    Returns:
+        Success response
     """
-    PRODUCTION-GRADE Telegram Webhook Handler
-    =========================================
-    GUARANTEED to respond - NEVER leaves user hanging.
-    """
-    logger.info(f"📥 Telegram webhook received")
+    logger.debug(f"Telegram webhook data: {data}")
     
     try:
         # Extract message from Telegram update
         if "message" not in data:
-            logger.info("⚠️  No message in update")
             return {"ok": True}
         
         message = data["message"]
         
-        # Handle text messages only
-        if "text" not in message:
-            logger.info("⚠️  No text in message")
-            return {"ok": True}
-        
-        user_id = str(message["from"]["id"])
-        text = message["text"]
-        
-        logger.info(f"📨 Received from {user_id}: {text[:50]}...")
-        
-        # Handle commands
-        if text.startswith("/"):
-            try:
+        # Handle text messages
+        if "text" in message:
+            user_id = str(message["from"]["id"])
+            text = message["text"]
+            
+            # Handle commands
+            if text.startswith("/"):
                 response = await _handle_telegram_command(text, user_id)
-                background_tasks.add_task(send_telegram_message, user_id, response)
-                logger.info(f"✅ Command handled: {text}")
-            except Exception as cmd_error:
-                logger.error(f"❌ Command error: {cmd_error}")
                 background_tasks.add_task(
                     send_telegram_message,
                     user_id,
-                    "Sorry, I encountered an error with that command. Try /help"
+                    response
                 )
-            return {"ok": True}
-        
-        # Process regular message with FAILSAFE
-        try:
-            # Parse message
-            parsed = await message_parser.parse(text, context={"user_id": user_id})
-            logger.info(f"✅ Parsed: intent={parsed.intent}, confidence={parsed.confidence}")
+                return {"ok": True}
             
-            # Route to agent
-            agent_response = await main_agent.route(parsed, user_id=user_id)
-            response_text = agent_response.message if hasattr(agent_response, 'message') else str(agent_response.get("message", "✅ Done!"))
-            
-            # Send response
-            background_tasks.add_task(send_telegram_message, user_id, response_text)
-            logger.info(f"✅ Response scheduled")
-            
-        except Exception as process_error:
-            logger.error(f"❌ Processing error: {process_error}", exc_info=True)
-            # FAILSAFE: Always respond with helpful message
-            fallback_message = (
-                "✅ I'm processing your request!\n\n"
-                "If you need help, try:\n"
-                "• /help - See commands\n"
-                "• /status - Check balances\n"
-                "• /insights - Get AI analysis"
+            # Process as regular message
+            webhook_msg = WebhookMessage(
+                user_id=user_id,
+                message=text,
+                platform="telegram",
+                metadata={"chat_id": message["chat"]["id"]}
             )
-            background_tasks.add_task(send_telegram_message, user_id, fallback_message)
+            
+            await receive_message(webhook_msg, background_tasks)
         
         return {"ok": True}
         
     except Exception as e:
-        logger.error(f"❌ CRITICAL webhook error: {e}", exc_info=True)
-        # Even on critical error, return ok so Telegram doesn't retry
-        return {"ok": True}
+        logger.error(f"Telegram webhook error: {e}", exc_info=True)
+        return {"ok": False, "error": str(e)}
 
 
 async def _handle_telegram_command(command: str, user_id: str) -> str:

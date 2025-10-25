@@ -19,16 +19,13 @@ class MemoryService:
     async def add_memory(self, content: str, metadata: Dict[str, Any]):
         """Add a memory to the vector database.
         
-        PRODUCTION MODE: Embeddings disabled (too slow)
-        Memories stored with empty embeddings for now.
-        
         Args:
             content: Text content to embed
             metadata: Metadata (table, row_id, business, date, etc.)
         """
         try:
-            # Use empty embedding (FAL AI embeddings too slow/unreliable)
-            embedding = [0.0] * 384  # Standard embedding dimension
+            # Generate embedding
+            embedding = await fal_client.embed_single(content)
             
             # Create unique ID
             vector_id = metadata.get("vector_id") or str(uuid.uuid4())
@@ -45,11 +42,11 @@ class MemoryService:
             # Add to Qdrant
             await qdrant_client.add_memory(vector_id, embedding, payload)
             
-            logger.info(f"✅ Added memory: {vector_id}")
+            logger.info(f"Added memory: {vector_id}")
             
         except Exception as e:
-            logger.error(f"❌ Error adding memory: {e}")
-            # Don't raise - memory is optional feature
+            logger.error(f"Error adding memory: {e}")
+            raise
     
     async def search(
         self,
@@ -59,34 +56,54 @@ class MemoryService:
     ) -> MemorySearchResponse:
         """Search memories using semantic search.
         
-        PRODUCTION MODE: Search disabled (embeddings not available)
-        Returns empty results instantly.
-        
         Args:
             query: Search query
             limit: Number of results
             filters: Optional filters
             
         Returns:
-            MemorySearchResponse with empty results
+            MemorySearchResponse with results and summary
         """
         try:
-            # Return empty results instantly (embeddings disabled for speed)
-            logger.info(f"📝 Memory search disabled (embeddings too slow)")
+            # Generate query embedding
+            query_embedding = await fal_client.embed_single(query)
+            
+            # Search in Qdrant
+            results = await qdrant_client.search_memory(
+                query_vector=query_embedding,
+                limit=limit,
+                filters=filters
+            )
+            
+            # Convert to MemorySearchResult objects
+            search_results = [
+                MemorySearchResult(
+                    id=str(r.get("id", "")),
+                    snippet=r.get("snippet", ""),
+                    table=r.get("table", ""),
+                    date=r.get("date"),
+                    business=r.get("business"),
+                    score=r.get("score", 0.0)
+                )
+                for r in results
+            ]
+            
+            # Generate AI summary
+            summary = await self._generate_summary(query, search_results)
             
             return MemorySearchResponse(
                 query=query,
-                results=[],
-                summary="",
-                total_found=0
+                results=search_results,
+                summary=summary,
+                total_found=len(search_results)
             )
             
         except Exception as e:
-            logger.error(f"❌ Error searching memory: {e}")
+            logger.error(f"Error searching memory: {e}")
             return MemorySearchResponse(
                 query=query,
                 results=[],
-                summary="",
+                summary="Sorry, I encountered an error searching your memory.",
                 total_found=0
             )
     
