@@ -12,6 +12,79 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/telegram/status")
+async def telegram_webhook_status():
+    """
+    Check Telegram webhook status.
+    CRITICAL for debugging webhook issues.
+    """
+    from services.telegram_bot import get_telegram_webhook_info
+    
+    try:
+        info = await get_telegram_webhook_info()
+        
+        webhook_data = info.get("result", {})
+        webhook_url = webhook_data.get("url", "NOT SET")
+        pending_update_count = webhook_data.get("pending_update_count", 0)
+        last_error_date = webhook_data.get("last_error_date")
+        last_error_message = webhook_data.get("last_error_message")
+        
+        status = "❌ NOT CONFIGURED" if not webhook_url or webhook_url == "" else "✅ ACTIVE"
+        
+        return {
+            "status": status,
+            "webhook_url": webhook_url,
+            "pending_updates": pending_update_count,
+            "last_error_date": last_error_date,
+            "last_error_message": last_error_message,
+            "full_info": webhook_data
+        }
+    except Exception as e:
+        logger.error(f"Error getting webhook status: {e}")
+        return {
+            "status": "❌ ERROR",
+            "error": str(e)
+        }
+
+
+@router.post("/telegram/set")
+async def set_telegram_webhook_manually(webhook_url: str = None):
+    """
+    Manually set Telegram webhook.
+    Use this if webhook is not auto-configured.
+    
+    Args:
+        webhook_url: Optional custom webhook URL (defaults to current backend URL)
+    """
+    from services.telegram_bot import set_telegram_webhook
+    from config import settings
+    
+    try:
+        # Use provided URL or construct from settings
+        if not webhook_url:
+            if not settings.webhook_url:
+                return {
+                    "success": False,
+                    "error": "No webhook_url provided and WEBHOOK_URL env var not set"
+                }
+            webhook_url = f"{settings.webhook_url}/webhook/telegram"
+        
+        logger.info(f"🔧 Manually setting webhook to: {webhook_url}")
+        result = await set_telegram_webhook(webhook_url)
+        
+        return {
+            "success": True,
+            "webhook_url": webhook_url,
+            "telegram_response": result
+        }
+    except Exception as e:
+        logger.error(f"Error setting webhook: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 @router.post("/message")
 async def receive_message(
     webhook_msg: WebhookMessage,

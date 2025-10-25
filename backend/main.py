@@ -43,15 +43,24 @@ async def startup_event():
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Backend URL: http://{settings.backend_host}:{settings.backend_port}")
     
-    # Set up Telegram webhook if in production
-    if settings.is_production and settings.webhook_url:
-        from services.telegram_bot import set_telegram_webhook
+    # ALWAYS set up Telegram webhook (critical for bot to work)
+    if settings.webhook_url:
+        from services.telegram_bot import set_telegram_webhook, get_telegram_webhook_info
         try:
             webhook_url = f"{settings.webhook_url}/webhook/telegram"
+            logger.info(f"🔗 Setting Telegram webhook to: {webhook_url}")
             result = await set_telegram_webhook(webhook_url)
-            logger.info(f"✅ Telegram webhook set: {result}")
+            logger.info(f"✅ Webhook response: {result}")
+            
+            # Verify webhook was set
+            info = await get_telegram_webhook_info()
+            logger.info(f"📋 Current webhook: {info}")
         except Exception as e:
-            logger.error(f"❌ Failed to set Telegram webhook: {e}")
+            logger.error(f"❌ CRITICAL: Failed to set Telegram webhook: {e}")
+            logger.error("⚠️  Bot will NOT receive messages until webhook is set!")
+    else:
+        logger.warning("⚠️  No WEBHOOK_URL configured - bot will NOT work!")
+        logger.warning("Set WEBHOOK_URL environment variable to your Render backend URL")
     
     # TODO: Initialize database connection pool
     # TODO: Initialize Qdrant collection
