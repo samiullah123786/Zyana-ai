@@ -7,7 +7,6 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from clients.qdrant_client import qdrant_client
-from clients.openai_client import openai_client
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -42,8 +41,9 @@ class ContextRetriever:
                 - context_summary: Text summary for AI
         """
         try:
-            # Generate embedding for query
-            embedding = await openai_client.embed_single(query_text)
+            # Generate embedding for query using embedding service
+            from services.embeddings import embedding_service
+            embedding = await embedding_service.embed_single(query_text)
             
             # Calculate date range filter
             end_date = datetime.now()
@@ -112,8 +112,9 @@ class ContextRetriever:
             List of similar events
         """
         try:
-            # Generate embedding for event title
-            embedding = await openai_client.embed_single(event_title)
+            # Generate embedding for event title using embedding service
+            from services.embeddings import embedding_service
+            embedding = await embedding_service.embed_single(event_title)
             
             # Search Qdrant
             results = qdrant_client.search(
@@ -188,8 +189,9 @@ class ContextRetriever:
             if attendees:
                 text_repr += f" Attendees: {', '.join(attendees)}."
             
-            # Generate embedding
-            embedding = await openai_client.embed_single(text_repr)
+            # Generate embedding using embedding service
+            from services.embeddings import embedding_service
+            embedding = await embedding_service.embed_single(text_repr)
             
             # Prepare payload
             payload = {

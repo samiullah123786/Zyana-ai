@@ -232,10 +232,15 @@ async def receive_message(
                 response_message
             )
         
+        # Build response data (agent_response might not exist for calendar/chat intents)
+        response_data = {}
+        if 'agent_response' in locals() and hasattr(agent_response, 'data'):
+            response_data = agent_response.data
+        
         return JSONResponse(content={
             "status": "success",
             "message": response_message,
-            "data": agent_response.data
+            "data": response_data
         })
         
     except Exception as e:

@@ -170,7 +170,18 @@ class RAGService:
             # Get Mirror Mode samples if enabled and requested
             mirror_samples = []
             if include_mirror:
-                mirror_enabled = await mirror_mode_service.is_mirror_mode_enabled(int(user_id) if user_id.isdigit() else 1)
+                # Convert Telegram user_id to internal user ID
+                try:
+                    from clients.supabase_client import supabase_client
+                    result = supabase_client.admin.table("users").select("id").eq(
+                        "telegram_id", user_id
+                    ).limit(1).execute()
+                    internal_user_id = result.data[0]["id"] if result.data else 1
+                except Exception as e:
+                    logger.warning(f"Could not map user_id {user_id} to internal ID: {e}")
+                    internal_user_id = 1
+                
+                mirror_enabled = await mirror_mode_service.is_mirror_mode_enabled(internal_user_id)
                 
                 if mirror_enabled:
                     mirror_samples = await self._retrieve_mirror_samples(

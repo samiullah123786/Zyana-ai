@@ -301,13 +301,12 @@ Now analyze this message:"""
             AI response as JSON string
         """
         try:
-            # Use Fal AI client
+            # Use Fal AI client (chat_simple doesn't accept max_tokens)
             response = await fal_client.chat_simple(
                 prompt=message,
                 system_prompt=system_prompt,
                 model=self.model,
-                temperature=0.3,  # Lower for more consistent JSON
-                max_tokens=500
+                temperature=0.3  # Lower for more consistent JSON
             )
             
             logger.info(f"🤖 ChatGPT-5 response received ({len(response)} chars)")
