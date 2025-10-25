@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 
 from config import settings
-from routers import webhook, finance, calendar, memory, agent, profile
+from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin
 
 # Configure logging
 logging.basicConfig(
@@ -99,6 +99,7 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint for monitoring - checks all critical services."""
+    from datetime import datetime
     from clients.supabase_client import supabase_client
     from clients.qdrant_client import qdrant_client
     from agents.calendar import calendar_agent
@@ -150,6 +151,10 @@ app.include_router(calendar.router, prefix="/calendar", tags=["Calendar"])
 app.include_router(memory.router, prefix="/memory", tags=["Memory"])
 app.include_router(agent.router, prefix="/agent", tags=["Agent"])
 app.include_router(profile.router, prefix="/profile", tags=["Profile"])
+app.include_router(invoice.router, prefix="/invoice", tags=["Invoice"])
+app.include_router(client.router, prefix="/client", tags=["Client"])
+app.include_router(notification.router, prefix="/notification", tags=["Notification"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 
 
 @app.exception_handler(Exception)

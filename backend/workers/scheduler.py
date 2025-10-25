@@ -8,7 +8,10 @@ from workers.jobs import (
     sync_google_calendar_job,
     generate_weekly_report_job,
     generate_monthly_report_job,
-    nightly_summarizer_job
+    nightly_summarizer_job,
+    check_overdue_payments_job,
+    process_scheduled_notifications_job,
+    analyze_routines_job
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -66,6 +69,34 @@ def setup_scheduled_jobs():
         timeout=600
     )
     logger.info("✓ Scheduled: Monthly report (1st of month, 9 AM)")
+    
+    # Every minute: Process scheduled notifications
+    scheduler.cron(
+        "* * * * *",  # Every minute
+        func=process_scheduled_notifications_job,
+        id="process_notifications",
+        timeout=60
+    )
+    logger.info("✓ Scheduled: Process scheduled notifications (every minute)")
+    
+    # Daily 9 AM: Check overdue payments
+    scheduler.cron(
+        "0 9 * * *",  # Every day at 9 AM
+        func=check_overdue_payments_job,
+        id="check_overdue_payments",
+        timeout=300
+    )
+    logger.info("✓ Scheduled: Check overdue payments (daily 9 AM)")
+    
+    # Daily midnight: Analyze work routines
+    scheduler.cron(
+        "0 0 * * *",  # Every day at midnight
+        func=analyze_routines_job,
+        args=[1],  # user_id
+        id="analyze_routines",
+        timeout=300
+    )
+    logger.info("✓ Scheduled: Analyze work routines (daily midnight)")
     
     logger.info("✅ All scheduled jobs set up successfully")
 

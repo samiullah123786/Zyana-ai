@@ -146,14 +146,23 @@ export function Navbar() {
               <Link href="/" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                 Dashboard
               </Link>
+              <Link href="/invoices" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                📋 Invoices
+              </Link>
+              <Link href="/clients" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                👥 Clients
+              </Link>
               <Link href="/calendar" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                 📅 Calendar
               </Link>
               <Link href="/memory" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                Memory Search
+                🧠 Memory Search
               </Link>
               <Link href="/agent-console" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
-                Agent Console
+                🤖 Agent Console
+              </Link>
+              <Link href="/admin" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                ⚙️ Admin
               </Link>
               <Link href="/settings" className="block px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
                 Settings

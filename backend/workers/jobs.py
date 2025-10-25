@@ -215,3 +215,119 @@ async def embed_batch_job(table: str, limit: int = 100):
         logger.error(f"Error in batch embed job: {e}")
         raise
 
+
+async def check_overdue_payments_job(telegram_chat_id: Optional[str] = None):
+    """Check for overdue invoices and send reminders.
+    
+    Args:
+        telegram_chat_id: Telegram chat ID to send reminders to
+    """
+    logger.info("Running overdue payments check job")
+    
+    try:
+        from agents.invoice_tracker import invoice_tracker
+        
+        # Get overdue invoices
+        overdue_invoices = await invoice_tracker.get_overdue_invoices()
+        
+        if not overdue_invoices:
+            logger.info("No overdue invoices found")
+            return
+        
+        logger.info(f"Found {len(overdue_invoices)} overdue invoices")
+        
+        # Send reminder for each overdue invoice
+        for invoice in overdue_invoices:
+            client_name = invoice.get("clients", {}).get("name", "Unknown")
+            business_name = invoice.get("businesses", {}).get("name", "Unknown")
+            invoice_number = invoice.get("invoice_number")
+            amount = invoice.get("amount")
+            currency = invoice.get("currency", "PKR")
+            due_date = datetime.fromisoformat(invoice.get("due_date"))
+            days_overdue = (datetime.now() - due_date).days
+            
+            message = (
+                f"⚠️ Payment Overdue!\n\n"
+                f"Invoice: #{invoice_number}\n"
+                f"Client: {client_name}\n"
+                f"Business: {business_name}\n"
+                f"Amount: {currency} {amount:,.0f}\n"
+                f"Due: {due_date.strftime('%b %d, %Y')}\n"
+                f"Days overdue: {days_overdue}"
+            )
+            
+            if telegram_chat_id:
+                await send_telegram_message(telegram_chat_id, message)
+        
+        logger.info("Overdue payment reminders sent")
+        
+    except Exception as e:
+        logger.error(f"Error in overdue payments check: {e}", exc_info=True)
+        raise
+
+
+async def process_scheduled_notifications_job():
+    """Process and send pending scheduled notifications.
+    
+    This job should run frequently (e.g., every minute).
+    """
+    logger.info("Running scheduled notifications processing job")
+    
+    try:
+        from agents.notification_scheduler import notification_scheduler
+        
+        await notification_scheduler.process_pending()
+        
+        logger.info("Scheduled notifications processing completed")
+        
+    except Exception as e:
+        logger.error(f"Error processing scheduled notifications: {e}", exc_info=True)
+        raise
+
+
+async def analyze_routines_job(user_id: int = 1, telegram_chat_id: Optional[str] = None):
+    """Analyze user work patterns and send weekly insight.
+    
+    Args:
+        user_id: User ID
+        telegram_chat_id: Telegram chat ID to send insight to
+    """
+    logger.info("Running routine analysis job")
+    
+    try:
+        from agents.routine_optimizer import routine_optimizer
+        
+        # Analyze patterns
+        analysis = await routine_optimizer.analyze_work_patterns(user_id)
+        
+        if analysis["success"]:
+            logger.info(f"Routine analysis complete: {analysis['data']}")
+            
+            # Generate and send weekly insight
+            if telegram_chat_id:
+                insight = await routine_optimizer.generate_weekly_insight(user_id)
+                await send_telegram_message(telegram_chat_id, insight)
+        else:
+            logger.info(f"Routine analysis skipped: {analysis['message']}")
+        
+        logger.info("Routine analysis job completed")
+        
+    except Exception as e:
+        logger.error(f"Error in routine analysis: {e}", exc_info=True)
+        raise
+
+
+# Legacy job names for backwards compatibility
+async def sync_google_calendar_job(user_id: int = 1):
+    """Alias for google_calendar_sync_job."""
+    return await google_calendar_sync_job(user_id)
+
+
+async def generate_weekly_report_job(user_id: int = 1):
+    """Alias for weekly_pl_summary_job."""
+    return await weekly_pl_summary_job(user_id)
+
+
+async def generate_monthly_report_job(user_id: int = 1):
+    """Alias for monthly_pl_summary_job."""
+    return await monthly_pl_summary_job(user_id)
