@@ -1,7 +1,17 @@
-"""Fal AI API client wrapper for Zyana using fal-ai/any-llm endpoint."""
+"""Fal AI API client wrapper for Zyana using fal-ai/any-llm endpoint.
+
+This client uses FAL AI's REST API following their official documentation:
+https://fal.ai/models/fal-ai/any-llm/api
+
+Key points:
+1. Send arguments directly (NOT wrapped in {"input": ...})
+2. Use correct model names with provider prefix (e.g., "anthropic/claude-3.5-sonnet")
+3. Response has "output" field with the generated text
+"""
 import asyncio
 import httpx
 import logging
+import json
 from typing import List, Dict, Optional, Any
 from tenacity import retry, stop_after_attempt, wait_exponential
 from config import settings
@@ -10,7 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 class FalAIClient:
-    """Client for interacting with Fal AI API using any-llm endpoint."""
+    """Client for interacting with Fal AI API using any-llm endpoint.
+    
+    Follows FAL AI official documentation for any-llm model.
+    Supports both synchronous and queue-based (async) requests.
+    """
     
     def __init__(self, api_key: Optional[str] = None):
         """Initialize Fal AI client.
@@ -19,45 +33,50 @@ class FalAIClient:
             api_key: Fal API key (defaults to settings)
         """
         self.api_key = api_key or settings.fal_api_key
-        # FAL AI base URL for REST API
-        self.base_url = "https://queue.fal.run"
+        # FAL AI REST API endpoints
+        self.sync_url = "https://fal.run/fal-ai/any-llm"  # Synchronous API
+        self.queue_url = "https://queue.fal.run/fal-ai/any-llm"  # Queue API for long-running
         self.headers = {
             "Authorization": f"Key {self.api_key}",
             "Content-Type": "application/json"
         }
+        
+        logger.info(f"✅ FalAIClient initialized with key: {self.api_key[:10]}...")
     
     @retry(
-        stop=stop_after_attempt(3),  # Try 3 times with exponential backoff
-        wait=wait_exponential(multiplier=1, min=1, max=10),
+        stop=stop_after_attempt(2),  # Try 2 times only (faster failure)
+        wait=wait_exponential(multiplier=1, min=1, max=5),
         reraise=True
     )
     async def chat(
         self,
         messages: List[Dict[str, str]],
-        model: str = "openai/gpt-5-chat",
+        model: str = "anthropic/claude-3.5-sonnet",
         temperature: float = 0.0,
         max_tokens: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Call Fal AI any-llm endpoint for text generation.
+        """Call FAL AI any-llm endpoint for text generation.
         
-        Following official FAL AI queue pattern:
-        1. Submit request → get request_id
+        Follows FAL AI official documentation queue pattern:
+        https://fal.ai/models/fal-ai/any-llm/api
+        
+        1. Submit request with arguments → get request_id
         2. Poll status until COMPLETED
-        3. Fetch result from /requests/{request_id}/result endpoint
+        3. Extract output from response
         
         Args:
             messages: List of message dicts with 'role' and 'content'
-            model: Model identifier (openai/gpt-5-chat, google/gemini-2.5-flash, etc.)
+            model: Model identifier (e.g., "anthropic/claude-3.5-sonnet")
             temperature: Sampling temperature (0.0 - 2.0)
             max_tokens: Maximum tokens to generate
             
         Returns:
-            Response dict with generated text
+            Response dict with generated text in OpenAI-compatible format
             
         Raises:
             httpx.HTTPError: If API request fails
         """
-        # Build prompt from messages
+        # Extract prompt and system_prompt from messages
         system_prompt = None
         prompt = ""
         
@@ -67,227 +86,151 @@ class FalAIClient:
             elif msg["role"] == "user":
                 prompt = msg["content"]
         
-        # Build FAL AI any-llm payload (per official docs schema)
-        payload = {
+        if not prompt:
+            raise ValueError("No user prompt found in messages")
+        
+        # Build arguments object per FAL AI documentation
+        # https://fal.ai/models/fal-ai/any-llm/api#schema
+        arguments = {
             "prompt": prompt,
             "model": model,
-            "temperature": temperature,
-            "priority": "latency"  # For faster responses
+            "priority": "latency",  # Use latency priority for faster responses
+            "temperature": temperature
         }
         
         if system_prompt:
-            payload["system_prompt"] = system_prompt
+            arguments["system_prompt"] = system_prompt
         
         if max_tokens:
-            payload["max_tokens"] = max_tokens
+            arguments["max_tokens"] = max_tokens
+        
+        logger.info(f"📤 FAL AI Request: model={model}, prompt_len={len(prompt)}, temp={temperature}")
+        logger.debug(f"Full arguments: {json.dumps(arguments, indent=2)}")
         
         try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                # STEP 1: Submit request to FAL AI any-llm queue
-                logger.info(f"📤 Submitting FAL AI request (model: {model})")
-                response = await client.post(
-                    f"{self.base_url}/fal-ai/any-llm",
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                # STEP 1: Submit to queue
+                # Send arguments directly (NOT wrapped in {"input": ...})
+                submit_response = await client.post(
+                    self.queue_url,
                     headers=self.headers,
-                    json={"input": payload}
+                    json=arguments  # ✅ Send directly per FAL AI docs
                 )
-                response.raise_for_status()
-                submit_data = response.json()
+                submit_response.raise_for_status()
+                submit_data = submit_response.json()
                 
-                logger.debug(f"Submit response: {submit_data}")
+                logger.debug(f"Submit response: {json.dumps(submit_data, indent=2)}")
                 
-                # Extract request_id (this is critical!)
+                # Get request_id from response
                 request_id = submit_data.get("request_id")
                 if not request_id:
-                    logger.error(f"No request_id in submit response: {submit_data}")
-                    raise Exception("Failed to get request_id from FAL AI")
+                    logger.error(f"❌ No request_id in response: {submit_data}")
+                    raise Exception("FAL AI didn't return a request_id")
                 
-                logger.info(f"✅ Job submitted: request_id={request_id}")
+                logger.info(f"✅ Submitted: request_id={request_id}")
                 
-                # STEP 2: Poll status endpoint until COMPLETED
-                status_url = f"{self.base_url}/fal-ai/any-llm/requests/{request_id}/status"
-                max_attempts = 40  # 40 attempts, 2 seconds each = 80 seconds
+                # STEP 2: Poll status until COMPLETED or FAILED
+                status_url = f"{self.queue_url}/requests/{request_id}/status"
+                max_polls = 30  # 30 polls * 2 seconds = 60 seconds max wait
                 
-                for attempt in range(max_attempts):
-                    await asyncio.sleep(2)
+                for poll_attempt in range(max_polls):
+                    await asyncio.sleep(2)  # Wait 2 seconds between polls
                     
                     status_response = await client.get(status_url, headers=self.headers)
                     status_response.raise_for_status()
                     status_data = status_response.json()
                     
-                    current_status = status_data.get('status')
+                    status = status_data.get("status")
                     
-                    # Log progress every 5 attempts
-                    if attempt % 5 == 0 and attempt > 0:
-                        logger.info(f"⏳ FAL AI processing... ({attempt * 2}s elapsed, status: {current_status})")
+                    # Log progress
+                    if poll_attempt % 5 == 0:
+                        logger.info(f"⏳ Polling status... ({poll_attempt * 2}s elapsed, status: {status})")
                     
-                    if current_status == "COMPLETED":
-                        logger.info(f"✅ Job COMPLETED after {(attempt + 1) * 2} seconds")
-                        logger.debug(f"Full status data: {status_data}")
+                    if status == "COMPLETED":
+                        # STEP 3: Extract output
+                        logger.info(f"✅ COMPLETED after {(poll_attempt + 1) * 2}s")
+                        logger.debug(f"Full response:\n{json.dumps(status_data, indent=2)}")
                         
-                        # STEP 3: Extract output from COMPLETED status response
-                        # FAL AI returns output in nested structure: response.output.choices[0].message.content
-                        output = None
+                        # FAL AI any-llm returns output in "data" object per their schema
+                        output_text = None
                         
-                        # FAL AI structure: response.output.choices[0].message.content
-                        if "response" in status_data:
-                            response = status_data["response"]
-                            if isinstance(response, dict) and "output" in response:
-                                output_obj = response["output"]
-                                if isinstance(output_obj, dict) and "choices" in output_obj:
-                                    choices = output_obj["choices"]
-                                    if isinstance(choices, list) and len(choices) > 0:
-                                        choice = choices[0]
-                                        if isinstance(choice, dict) and "message" in choice:
-                                            message = choice["message"]
-                                            if isinstance(message, dict) and "content" in message:
-                                                output = message["content"]
-                                                logger.info(f"✅ Extracted output from response.output.choices[0].message.content")
+                        # Check data.output (primary location per FAL AI docs)
+                        if "data" in status_data:
+                            data = status_data["data"]
+                            if isinstance(data, dict):
+                                output_text = data.get("output")
                         
-                        # Fallback 1: Direct data.output structure
-                        if not output and "data" in status_data and isinstance(status_data["data"], dict):
-                            output = status_data["data"].get("output")
-                            if output:
-                                logger.info(f"✅ Extracted output from data.output")
+                        # Fallback: Check top-level output
+                        if not output_text and "output" in status_data:
+                            output_text = status_data.get("output")
                         
-                        # Fallback 2: Top-level output
-                        if not output and "output" in status_data:
-                            output = status_data.get("output")
-                            if output:
-                                logger.info(f"✅ Extracted output from top-level output")
-                        
-                        # Fallback 3: Result field
-                        if not output and "result" in status_data:
-                            result = status_data.get("result")
-                            if isinstance(result, dict):
-                                output = result.get("output")
-                            elif isinstance(result, str):
-                                output = result
-                            if output:
-                                logger.info(f"✅ Extracted output from result")
-                        
-                        # Special case: Try response_url with POST (some FAL endpoints require this)
-                        if not output and "response_url" in status_data:
-                            logger.info(f"📥 Trying response_url with POST: {status_data['response_url']}/result")
-                            try:
-                                # Try POST to /result endpoint
-                                result_response = await client.post(
-                                    f"{status_data['response_url']}/result",
-                                    headers=self.headers,
-                                    json={}  # Empty body for result fetch
-                                )
-                                result_response.raise_for_status()
-                                result_data = result_response.json()
-                                
-                                logger.debug(f"Result from POST: {result_data}")
-                                
-                                # Extract output
-                                if "data" in result_data and isinstance(result_data["data"], dict):
-                                    output = result_data["data"].get("output")
-                                elif "output" in result_data:
-                                    output = result_data.get("output")
-                                    
-                            except httpx.HTTPStatusError as e:
-                                if e.response.status_code == 422:
-                                    logger.warning(f"422 on result fetch - output might be in logs field")
-                                else:
-                                    logger.warning(f"HTTP {e.response.status_code} fetching result: {e.response.text[:200]}")
-                            except Exception as e:
-                                logger.warning(f"Error fetching from response_url: {e}")
-                        
-                        # Last resort: Check if output is in logs field (some models put it there)
-                        if not output and "logs" in status_data and status_data["logs"]:
-                            logger.info("Checking logs field for output...")
-                            logs = status_data["logs"]
-                            if isinstance(logs, list) and len(logs) > 0:
-                                # Get last log entry which might be the output
-                                last_log = logs[-1]
-                                if isinstance(last_log, dict) and "message" in last_log:
-                                    output = last_log["message"]
-                        
-                        if output:
-                            logger.info(f"✅ Got output: {len(output)} chars")
-                            print(f"✅ FAL AI SUCCESS: Got {len(output)} chars of output")  # Emergency print
+                        if output_text:
+                            logger.info(f"✅ Got output: {len(output_text)} characters")
+                            # Return in OpenAI-compatible format
                             return {
                                 "choices": [
                                     {
                                         "message": {
-                                            "content": output
+                                            "content": output_text
                                         }
                                     }
                                 ]
                             }
                         else:
-                            # No output found anywhere - this might be a FAL API issue
-                            # CRITICAL: Force logging with print() for visibility
-                            print("=" * 100)
-                            print("🔥 CRITICAL ERROR: FAL AI COMPLETED BUT NO OUTPUT FOUND!")
-                            print("=" * 100)
-                            logger.error(f"❌ COMPLETED but NO OUTPUT found!")
-                            print(f"Status keys: {list(status_data.keys())}")
-                            logger.error(f"Status keys: {list(status_data.keys())}")
-                            print(f"Request ID: {request_id}")
+                            # No output found - this is a problem
+                            metrics = status_data.get("metrics", {})
+                            inference_time = metrics.get("inference_time", 0)
+                            
+                            logger.error(f"❌ COMPLETED but no output found!")
                             logger.error(f"Request ID: {request_id}")
-                            print(f"Metrics: {status_data.get('metrics')}")
-                            logger.error(f"Metrics: {status_data.get('metrics')}")
+                            logger.error(f"Metrics: {metrics}")
+                            logger.error(f"Full response:\n{json.dumps(status_data, indent=2)}")
                             
-                            # DUMP FULL JSON for debugging
-                            print("\n🔍 FULL STATUS DATA JSON:")
-                            print("=" * 100)
-                            import json
-                            try:
-                                print(json.dumps(status_data, indent=2))
-                            except:
-                                print(str(status_data))
-                            print("=" * 100)
-                            logger.error(f"Full status_data: {status_data}")
+                            if inference_time < 0.1:
+                                logger.error(f"⚠️  Inference time ({inference_time:.3f}s) is suspiciously fast!")
+                                logger.error(f"⚠️  Model likely didn't execute. Check model name and API key permissions.")
                             
-                            # Check if this is a model name issue
-                            if status_data.get('metrics', {}).get('inference_time', 0) < 0.1:
-                                print("⚠️  WARNING: Inference time < 0.1s suggests model might not be running correctly!")
-                                print(f"⚠️  Current model: {self.model if hasattr(self, 'model') else 'unknown'}")
-                                logger.error("Suspiciously fast inference time - possible model configuration issue")
-                            
-                            print("=" * 100)
-                            
-                            # Return a more descriptive fallback
+                            # Return fallback
                             return {
                                 "choices": [
                                     {
                                         "message": {
-                                            "content": "Hey Sami! 👋 I'm having a technical issue with my AI brain right now. The job completed but returned no text. This might be a temporary FAL AI service issue. Could you try again in a moment?"
+                                            "content": "I'm experiencing technical difficulties with my AI processor. Please try again!"
                                         }
                                     }
                                 ]
                             }
                     
-                    elif current_status == "FAILED":
-                        error_msg = status_data.get('error', 'Unknown error')
-                        logger.error(f"❌ FAL AI job failed: {error_msg}")
-                        raise Exception(f"FAL AI job failed: {error_msg}")
+                    elif status == "FAILED":
+                        error = status_data.get("error", "Unknown error")
+                        logger.error(f"❌ FAL AI job FAILED: {error}")
+                        logger.error(f"Full error response:\n{json.dumps(status_data, indent=2)}")
+                        raise Exception(f"FAL AI request failed: {error}")
                     
-                    elif current_status in ["IN_QUEUE", "IN_PROGRESS"]:
-                        # Normal - keep polling
+                    elif status in ["IN_QUEUE", "IN_PROGRESS"]:
+                        # Still processing, continue polling
                         continue
                     else:
-                        logger.warning(f"Unknown status: {current_status}")
+                        logger.warning(f"⚠️  Unknown status: {status}")
                 
-                # Timeout
-                logger.error(f"⏰ FAL AI timeout after {max_attempts * 2}s. request_id: {request_id}")
+                # Timeout after max_polls
+                logger.error(f"⏰ Timeout after {max_polls * 2}s. Request ID: {request_id}")
                 return {
                     "choices": [
                         {
                             "message": {
-                                "content": "That's taking longer than expected, Sami. Let me try again in a moment!"
+                                "content": "That's taking longer than expected, Sami. Let me try again!"
                             }
                         }
                     ]
                 }
                 
-        except httpx.HTTPError as e:
-            logger.error(f"❌ Fal AI HTTP error: {e}", exc_info=True)
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ HTTP error: {e.response.status_code}")
+            logger.error(f"Response: {e.response.text}")
             raise
         except Exception as e:
-            logger.error(f"❌ Fal AI unexpected error: {e}", exc_info=True)
+            logger.error(f"❌ Unexpected error: {e}", exc_info=True)
             raise
     
     async def chat_simple(
