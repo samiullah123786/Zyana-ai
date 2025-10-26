@@ -40,6 +40,11 @@ class FalAIClient:
     ) -> Dict[str, Any]:
         """Call Fal AI any-llm endpoint for text generation.
         
+        Following official FAL AI queue pattern:
+        1. Submit request → get request_id
+        2. Poll status until COMPLETED
+        3. Fetch result from /requests/{request_id}/result endpoint
+        
         Args:
             messages: List of message dicts with 'role' and 'content'
             model: Model identifier (openai/gpt-5-chat, google/gemini-2.5-flash, etc.)
@@ -62,7 +67,7 @@ class FalAIClient:
             elif msg["role"] == "user":
                 prompt = msg["content"]
         
-        # Build FAL AI any-llm payload
+        # Build FAL AI any-llm payload (per official docs schema)
         payload = {
             "prompt": prompt,
             "model": model,
@@ -77,54 +82,70 @@ class FalAIClient:
             payload["max_tokens"] = max_tokens
         
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                # Submit request to FAL AI any-llm
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                # STEP 1: Submit request to FAL AI any-llm queue
+                logger.info(f"📤 Submitting FAL AI request (model: {model})")
                 response = await client.post(
                     f"{self.base_url}/fal-ai/any-llm",
                     headers=self.headers,
                     json={"input": payload}
                 )
                 response.raise_for_status()
-                data = response.json()
+                submit_data = response.json()
                 
-                logger.debug(f"Fal AI response: {data}")
+                logger.debug(f"Submit response: {submit_data}")
                 
-                # Handle queue response
-                if data.get("status") == "IN_QUEUE":
-                    # Get the status URL and poll for result
-                    status_url = data.get("status_url")
-                    if not status_url:
-                        raise Exception("No status URL in queue response")
+                # Extract request_id (this is critical!)
+                request_id = submit_data.get("request_id")
+                if not request_id:
+                    logger.error(f"No request_id in submit response: {submit_data}")
+                    raise Exception("Failed to get request_id from FAL AI")
+                
+                logger.info(f"✅ Job submitted: request_id={request_id}")
+                
+                # STEP 2: Poll status endpoint until COMPLETED
+                status_url = f"{self.base_url}/fal-ai/any-llm/requests/{request_id}/status"
+                max_attempts = 40  # 40 attempts, 2 seconds each = 80 seconds
+                
+                for attempt in range(max_attempts):
+                    await asyncio.sleep(2)
                     
-                    # Poll for result (increased timeout to 60 seconds for complex LLM requests)
-                    max_attempts = 30  # 30 attempts, 2 seconds each = 60 seconds
-                    for attempt in range(max_attempts):
-                        await asyncio.sleep(2)
+                    status_response = await client.get(status_url, headers=self.headers)
+                    status_response.raise_for_status()
+                    status_data = status_response.json()
+                    
+                    current_status = status_data.get('status')
+                    
+                    # Log progress every 5 attempts
+                    if attempt % 5 == 0 and attempt > 0:
+                        logger.info(f"⏳ FAL AI processing... ({attempt * 2}s elapsed, status: {current_status})")
+                    
+                    if current_status == "COMPLETED":
+                        logger.info(f"✅ Job COMPLETED after {(attempt + 1) * 2} seconds")
                         
-                        status_response = await client.get(status_url, headers=self.headers)
-                        status_response.raise_for_status()
-                        status_data = status_response.json()
+                        # STEP 3: Fetch the ACTUAL RESULT from the result endpoint
+                        # THIS IS THE MISSING STEP that was causing the issue!
+                        result_url = f"{self.base_url}/fal-ai/any-llm/requests/{request_id}/result"
+                        logger.info(f"📥 Fetching result from: {result_url}")
                         
-                        current_status = status_data.get('status')
-                        logger.debug(f"Poll attempt {attempt + 1}/{max_attempts}: {current_status}")
-                        
-                        # Log progress every 5 attempts
-                        if attempt % 5 == 0 and attempt > 0:
-                            logger.info(f"⏳ FAL AI still processing... ({attempt * 2}s elapsed, status: {current_status})")
-                        
-                        if current_status == "COMPLETED":
-                            # Job completed - extract output from various possible locations
-                            output = status_data.get("output")
+                        try:
+                            result_response = await client.get(result_url, headers=self.headers)
+                            result_response.raise_for_status()
+                            result_data = result_response.json()
                             
-                            # FAL AI might return output in different formats
-                            if not output and "data" in status_data:
-                                output = status_data["data"].get("output")
+                            logger.debug(f"Result data: {result_data}")
                             
-                            if not output and "result" in status_data:
-                                output = status_data["result"]
+                            # Extract output per FAL AI schema: result_data["data"]["output"]
+                            output = None
+                            if "data" in result_data:
+                                output = result_data["data"].get("output")
+                            
+                            # Fallback: try top-level output
+                            if not output:
+                                output = result_data.get("output")
                             
                             if output:
-                                logger.info(f"✅ FAL AI completed after {(attempt + 1) * 2} seconds")
+                                logger.info(f"✅ Got output: {len(output)} chars")
                                 return {
                                     "choices": [
                                         {
@@ -135,45 +156,57 @@ class FalAIClient:
                                     ]
                                 }
                             else:
-                                # COMPLETED but no output - log full response for debugging
-                                logger.warning(f"⚠️ FAL AI returned COMPLETED but no output found. Full response: {status_data}")
-                                # Try to extract any text content
-                                content = str(status_data.get("data", status_data))
+                                # No output even after fetching result
+                                logger.error(f"❌ No output in result data: {result_data}")
                                 return {
                                     "choices": [
                                         {
                                             "message": {
-                                                "content": content
+                                                "content": "Hey Sami! I processed your request but need a moment to formulate my thoughts. Could you try rephrasing?"
                                             }
                                         }
                                     ]
                                 }
-                        elif current_status == "FAILED":
-                            error_msg = status_data.get('error', 'Unknown error')
-                            logger.error(f"❌ FAL AI job failed: {error_msg}")
-                            raise Exception(f"FAL AI job failed: {error_msg}")
-                    
-                    # Timeout - log detailed info for debugging
-                    logger.error(f"⏰ FAL AI timeout after {max_attempts * 2}s. Last status: {status_data.get('status')}")
-                    raise Exception(f"FAL AI job timed out after {max_attempts * 2} seconds. Status URL: {status_url}")
-                
-                # Direct response (immediate result)
-                elif "output" in data:
-                    return {
-                        "choices": [
-                            {
-                                "message": {
-                                    "content": data["output"]
-                                }
+                        except Exception as e:
+                            logger.error(f"❌ Failed to fetch result: {e}", exc_info=True)
+                            return {
+                                "choices": [
+                                    {
+                                        "message": {
+                                            "content": "I'm having a bit of trouble processing that right now. Mind trying again?"
+                                        }
+                                    }
+                                ]
                             }
-                        ]
-                    }
-                else:
-                    logger.error(f"Unexpected FAL AI response format: {data}")
-                    raise Exception("Invalid response format from FAL AI")
+                    
+                    elif current_status == "FAILED":
+                        error_msg = status_data.get('error', 'Unknown error')
+                        logger.error(f"❌ FAL AI job failed: {error_msg}")
+                        raise Exception(f"FAL AI job failed: {error_msg}")
+                    
+                    elif current_status in ["IN_QUEUE", "IN_PROGRESS"]:
+                        # Normal - keep polling
+                        continue
+                    else:
+                        logger.warning(f"Unknown status: {current_status}")
+                
+                # Timeout
+                logger.error(f"⏰ FAL AI timeout after {max_attempts * 2}s. request_id: {request_id}")
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "That's taking longer than expected, Sami. Let me try again in a moment!"
+                            }
+                        }
+                    ]
+                }
                 
         except httpx.HTTPError as e:
-            logger.error(f"Fal AI API error: {e}")
+            logger.error(f"❌ Fal AI HTTP error: {e}", exc_info=True)
+            raise
+        except Exception as e:
+            logger.error(f"❌ Fal AI unexpected error: {e}", exc_info=True)
             raise
     
     async def chat_simple(
