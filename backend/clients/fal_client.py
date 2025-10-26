@@ -124,12 +124,17 @@ class FalAIClient:
                         logger.info(f"✅ Job COMPLETED after {(attempt + 1) * 2} seconds")
                         
                         # STEP 3: Fetch the ACTUAL RESULT from the result endpoint
-                        # THIS IS THE MISSING STEP that was causing the issue!
-                        result_url = f"{self.base_url}/fal-ai/any-llm/requests/{request_id}/result"
+                        # CRITICAL: FAL AI requires POST (not GET) with requestId in body!
+                        result_url = f"{self.base_url}/fal-ai/any-llm/result"
                         logger.info(f"📥 Fetching result from: {result_url}")
                         
                         try:
-                            result_response = await client.get(result_url, headers=self.headers)
+                            # Use POST with requestId in JSON body (per official FAL AI docs)
+                            result_response = await client.post(
+                                result_url,
+                                headers=self.headers,
+                                json={"requestId": request_id}
+                            )
                             result_response.raise_for_status()
                             result_data = result_response.json()
                             
@@ -167,13 +172,25 @@ class FalAIClient:
                                         }
                                     ]
                                 }
-                        except Exception as e:
-                            logger.error(f"❌ Failed to fetch result: {e}", exc_info=True)
+                        except httpx.HTTPStatusError as e:
+                            logger.error(f"❌ Failed to fetch result (HTTP {e.response.status_code}): {e}", exc_info=True)
+                            logger.error(f"Response body: {e.response.text}")
                             return {
                                 "choices": [
                                     {
                                         "message": {
-                                            "content": "I'm having a bit of trouble processing that right now. Mind trying again?"
+                                            "content": "I'm having a bit of trouble processing that right now, Sami. Mind trying again?"
+                                        }
+                                    }
+                                ]
+                            }
+                        except Exception as e:
+                            logger.error(f"❌ Unexpected error fetching result: {e}", exc_info=True)
+                            return {
+                                "choices": [
+                                    {
+                                        "message": {
+                                            "content": "I'm having a bit of trouble processing that right now, Sami. Mind trying again?"
                                         }
                                     }
                                 ]
