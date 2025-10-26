@@ -23,6 +23,8 @@ from services.datetime_parser import datetime_parser
 from services.context_retriever import context_retriever
 from services.rag import rag_service
 from services.mirror_mode import mirror_mode_service
+from services.memory_manager import memory_manager
+from services.agent_registry import agent_registry
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -111,6 +113,9 @@ class IntentRouter:
                 limit=3
             )
             
+            # Get multi-layer memory context (short-term, long-term, semantic)
+            multi_layer_memory = await memory_manager.build_context_for_ai(user_id, message)
+            
             # Get RAG memory context (semantic memories + mirror mode + preferences)
             memory_context = await rag_service.get_user_memory_context(
                 user_id,
@@ -118,8 +123,13 @@ class IntentRouter:
                 include_mirror=True
             )
             
-            # Build AI prompt with enhanced context
-            system_prompt = self._build_system_prompt(user_context, calendar_context, memory_context)
+            # Build AI prompt with enhanced context (including memory and self-awareness)
+            system_prompt = self._build_system_prompt(
+                user_context, 
+                calendar_context, 
+                memory_context,
+                multi_layer_memory
+            )
             
             # Call ChatGPT-5 via Fal AI
             ai_response = await self._call_chatgpt5(message, system_prompt)
@@ -155,6 +165,47 @@ class IntentRouter:
                 f"(confidence: {result.get('confidence', 0):.2f})"
             )
             
+            # Save conversation to memory (multi-layer)
+            try:
+                # Save user message
+                await memory_manager.save_session_message(
+                    user_id=user_id,
+                    role="user",
+                    content=message,
+                    intent=result['intent'],
+                    success=True
+                )
+                
+                # Save assistant response
+                await memory_manager.save_session_message(
+                    user_id=user_id,
+                    role="assistant",
+                    content=result.get('response', ''),
+                    intent=result['intent'],
+                    success=True
+                )
+                
+                # Extract and save facts from conversation
+                await memory_manager.extract_facts_from_response(
+                    user_id=user_id,
+                    message=message,
+                    response=result.get('response', '')
+                )
+                
+                # Store in vector memory for semantic search
+                conversation_text = f"User: {message}\nAssistant: {result.get('response', '')}"
+                await memory_manager.embed_and_store_memory(
+                    user_id=user_id,
+                    text=conversation_text,
+                    metadata={"intent": result['intent']}
+                )
+                
+                logger.debug(f"💾 Saved conversation to memory for user {user_id}")
+                
+            except Exception as mem_error:
+                logger.warning(f"⚠️  Memory save failed (non-critical): {mem_error}")
+                # Don't fail the request if memory save fails
+            
             return result
             
         except Exception as e:
@@ -173,14 +224,16 @@ class IntentRouter:
         self,
         user_context: Dict[str, Any],
         calendar_context: Optional[Dict[str, Any]] = None,
-        memory_context: Optional[Dict[str, Any]] = None
+        memory_context: Optional[Dict[str, Any]] = None,
+        multi_layer_memory: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Build system prompt for ChatGPT-5 with strict function calling and RAG context.
+        """Build system prompt with memory, context, and self-awareness.
         
         Args:
             user_context: User's context and preferences
             calendar_context: Recent calendar events and context
             memory_context: RAG memory context (semantic memories + mirror mode)
+            multi_layer_memory: Multi-layer memory (short-term, long-term, semantic)
             
         Returns:
             System prompt string
@@ -193,6 +246,10 @@ class IntentRouter:
         # Get current Pakistan time
         current_time_dt, current_time_readable = get_current_pakistan_time()
         
+        # Get system status for self-awareness
+        system_status = agent_registry.get_system_status()
+        capabilities_summary = agent_registry.get_capabilities_summary()
+        
         # Add calendar context if available
         calendar_context_text = ""
         if calendar_context and calendar_context.get('context_summary'):
@@ -203,13 +260,43 @@ class IntentRouter:
         if memory_context and memory_context.get('has_context'):
             memory_context_text = f"\n\n{memory_context.get('formatted_context', '')}"
         
-        return f"""You are Zyana - {owner_name}'s intelligent, friendly AI assistant.
+        # Add multi-layer memory context if available
+        multi_layer_context = ""
+        if multi_layer_memory:
+            chat_history = multi_layer_memory.get('chat_history', '')
+            user_facts = multi_layer_memory.get('user_facts', '')
+            semantic_context = multi_layer_memory.get('semantic_context', '')
+            
+            if chat_history:
+                multi_layer_context += f"\n\n**Recent Conversation:**\n{chat_history[:500]}"  # Limit length
+            
+            if user_facts and user_facts != "No long-term facts stored yet.":
+                multi_layer_context += f"\n\n**Long-Term Facts About {owner_name}:**\n- {user_facts[:300]}"
+            
+            if semantic_context and semantic_context != "No relevant past context found.":
+                multi_layer_context += f"\n\n**Relevant Past Context:**\n{semantic_context[:300]}"
+        
+        return f"""You are Zyana - {owner_name}'s intelligent, proactive AI assistant with advanced memory and self-awareness.
 
 **CURRENT TIME: {current_time_readable} (Pakistan Standard Time, UTC+5)**
 **Current Day: {current_time_dt.strftime("%A")}**
 **Current Date: {current_time_dt.strftime("%d %B %Y")}**
 
-IMPORTANT: Use this time information to understand "today", "tomorrow", "next week", etc.
+**SYSTEM STATUS:**
+- Overall Health: {system_status['overall_status'].upper()}
+- Active Agents: {system_status['healthy']}/{system_status['total_agents']} healthy
+
+**YOUR CAPABILITIES:**
+{capabilities_summary}
+
+IMPORTANT: Use the time information to understand "today", "tomorrow", "next week", etc.{multi_layer_context}{calendar_context_text}{memory_context_text}
+
+**WHO YOU ARE:**
+- You remember past conversations and learn from interactions
+- You know your own capabilities and limitations
+- You auto-repair issues and keep yourself healthy
+- You're proactive, reliable, and context-aware
+- You maintain {owner_name}'s preferred communication style ({tone})
 
 Your job: Analyze user messages and decide if they contain actionable tasks or are casual conversation.
 
