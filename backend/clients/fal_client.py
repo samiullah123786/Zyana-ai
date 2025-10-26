@@ -206,6 +206,7 @@ class FalAIClient:
                         
                         if output:
                             logger.info(f"✅ Got output: {len(output)} chars")
+                            print(f"✅ FAL AI SUCCESS: Got {len(output)} chars of output")  # Emergency print
                             return {
                                 "choices": [
                                     {
@@ -217,10 +218,36 @@ class FalAIClient:
                             }
                         else:
                             # No output found anywhere - this might be a FAL API issue
+                            # CRITICAL: Force logging with print() for visibility
+                            print("=" * 100)
+                            print("🔥 CRITICAL ERROR: FAL AI COMPLETED BUT NO OUTPUT FOUND!")
+                            print("=" * 100)
                             logger.error(f"❌ COMPLETED but NO OUTPUT found!")
+                            print(f"Status keys: {list(status_data.keys())}")
                             logger.error(f"Status keys: {list(status_data.keys())}")
+                            print(f"Request ID: {request_id}")
                             logger.error(f"Request ID: {request_id}")
+                            print(f"Metrics: {status_data.get('metrics')}")
                             logger.error(f"Metrics: {status_data.get('metrics')}")
+                            
+                            # DUMP FULL JSON for debugging
+                            print("\n🔍 FULL STATUS DATA JSON:")
+                            print("=" * 100)
+                            import json
+                            try:
+                                print(json.dumps(status_data, indent=2))
+                            except:
+                                print(str(status_data))
+                            print("=" * 100)
+                            logger.error(f"Full status_data: {status_data}")
+                            
+                            # Check if this is a model name issue
+                            if status_data.get('metrics', {}).get('inference_time', 0) < 0.1:
+                                print("⚠️  WARNING: Inference time < 0.1s suggests model might not be running correctly!")
+                                print(f"⚠️  Current model: {self.model if hasattr(self, 'model') else 'unknown'}")
+                                logger.error("Suspiciously fast inference time - possible model configuration issue")
+                            
+                            print("=" * 100)
                             
                             # Return a more descriptive fallback
                             return {

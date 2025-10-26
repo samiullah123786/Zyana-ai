@@ -3,16 +3,42 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+import sys
+import traceback
 
 from config import settings
 from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin, feedback
 
-# Configure logging
+# Configure logging with FORCE to stdout
 logging.basicConfig(
-    level=logging.INFO if settings.is_production else logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG,  # Force DEBUG level to catch everything
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),  # Force to stdout
+        logging.StreamHandler(sys.stderr)   # Also stderr for errors
+    ]
 )
 logger = logging.getLogger(__name__)
+
+# Global exception handler to catch EVERYTHING (even silent exceptions)
+def log_unhandled_exceptions(exc_type, exc_value, exc_traceback):
+    """Catch and log ALL unhandled exceptions."""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    
+    print("=" * 100)
+    print("🔥🔥🔥 UNHANDLED EXCEPTION CAUGHT BY GLOBAL HANDLER 🔥🔥🔥")
+    print("=" * 100)
+    logger.critical("🔥 Unhandled exception", exc_info=(exc_type, exc_value, exc_traceback))
+    print("Exception Type:", exc_type)
+    print("Exception Value:", exc_value)
+    print("Traceback:")
+    traceback.print_tb(exc_traceback)
+    print("=" * 100)
+
+sys.excepthook = log_unhandled_exceptions
+logger.info("✅ Global exception handler installed")
 
 # Create FastAPI app
 app = FastAPI(
