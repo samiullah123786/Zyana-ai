@@ -8,11 +8,13 @@ Enhanced with:
 - Multi-turn clarification support
 - Session-based conversation management
 - Powered by OpenAI GPT-4o (fast, intelligent, reliable)
+- Time-aware (Pakistan Standard Time)
 """
 import logging
 import json
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+import pytz
 
 from clients.openai_client import openai_client
 from clients.supabase_client import supabase_client
@@ -24,6 +26,19 @@ from services.mirror_mode import mirror_mode_service
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def get_current_pakistan_time():
+    """Get current time in Pakistan Standard Time.
+    
+    Returns:
+        Tuple of (datetime object, readable string)
+    """
+    tz = pytz.timezone("Asia/Karachi")
+    now = datetime.now(tz)
+    # Format: "Saturday, 26 October 2025, 08:30 PM"
+    readable = now.strftime("%A, %d %B %Y, %I:%M %p")
+    return now, readable
 
 
 class IntentRouter:
@@ -175,6 +190,9 @@ class IntentRouter:
         tone = user_context.get("tone", "friendly")
         owner_name = settings.owner_name
         
+        # Get current Pakistan time
+        current_time_dt, current_time_readable = get_current_pakistan_time()
+        
         # Add calendar context if available
         calendar_context_text = ""
         if calendar_context and calendar_context.get('context_summary'):
@@ -186,6 +204,12 @@ class IntentRouter:
             memory_context_text = f"\n\n{memory_context.get('formatted_context', '')}"
         
         return f"""You are Zyana - {owner_name}'s intelligent, friendly AI assistant.
+
+**CURRENT TIME: {current_time_readable} (Pakistan Standard Time, UTC+5)**
+**Current Day: {current_time_dt.strftime("%A")}**
+**Current Date: {current_time_dt.strftime("%d %B %Y")}**
+
+IMPORTANT: Use this time information to understand "today", "tomorrow", "next week", etc.
 
 Your job: Analyze user messages and decide if they contain actionable tasks or are casual conversation.
 

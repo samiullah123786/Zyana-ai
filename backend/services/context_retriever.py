@@ -205,16 +205,13 @@ class ContextRetriever:
                 'created_at': datetime.now().isoformat()
             }
             
-            # Store in Qdrant
+            # Store in Qdrant using add_memory method
             point_id = f"calendar_{session_id}_{int(datetime.now().timestamp())}"
             
-            qdrant_client.upsert(
-                collection_name=self.collection_name,
-                points=[{
-                    'id': point_id,
-                    'vector': embedding,
-                    'payload': payload
-                }]
+            await qdrant_client.add_memory(
+                memory_id=point_id,
+                embedding=embedding,
+                payload=payload
             )
             
             logger.info(
