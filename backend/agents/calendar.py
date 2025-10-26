@@ -387,10 +387,9 @@ class CalendarAgent:
             True if successful, False otherwise
         """
         try:
-            # Store in calendar_events table
-            result = supabase_client.admin.table("calendar_events").insert({
+            # Build event data (only include session_id if it exists in sessions table)
+            event_data = {
                 "user_id": user_id,
-                "session_id": session_id,
                 "raw_user_text": raw_text,
                 "resolved_title": resolved_title,
                 "resolved_start_iso": resolved_start_iso,
@@ -399,7 +398,23 @@ class CalendarAgent:
                 "location": location,
                 "google_event_id": google_event_id,
                 "confidence_score": confidence_score
-            }).execute()
+            }
+            
+            # Only add session_id if provided (for multi-turn clarification)
+            # Skip if session doesn't exist to avoid foreign key constraint violation
+            if session_id:
+                # Check if session exists
+                try:
+                    from services.session_manager import session_manager
+                    session_data = await session_manager.get_session(session_id)
+                    if session_data:
+                        event_data["session_id"] = session_id
+                except:
+                    # Session doesn't exist, skip session_id
+                    logger.debug(f"Session {session_id} not found, storing event without session link")
+            
+            # Store in calendar_events table
+            result = supabase_client.admin.table("calendar_events").insert(event_data).execute()
             
             logger.info(f"✅ Stored resolved calendar event: {resolved_title}")
             
