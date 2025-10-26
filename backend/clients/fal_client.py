@@ -113,13 +113,37 @@ class FalAIClient:
                             logger.info(f"⏳ FAL AI still processing... ({attempt * 2}s elapsed, status: {current_status})")
                         
                         if current_status == "COMPLETED":
-                            if "output" in status_data:
+                            # Job completed - extract output from various possible locations
+                            output = status_data.get("output")
+                            
+                            # FAL AI might return output in different formats
+                            if not output and "data" in status_data:
+                                output = status_data["data"].get("output")
+                            
+                            if not output and "result" in status_data:
+                                output = status_data["result"]
+                            
+                            if output:
                                 logger.info(f"✅ FAL AI completed after {(attempt + 1) * 2} seconds")
                                 return {
                                     "choices": [
                                         {
                                             "message": {
-                                                "content": status_data["output"]
+                                                "content": output
+                                            }
+                                        }
+                                    ]
+                                }
+                            else:
+                                # COMPLETED but no output - log full response for debugging
+                                logger.warning(f"⚠️ FAL AI returned COMPLETED but no output found. Full response: {status_data}")
+                                # Try to extract any text content
+                                content = str(status_data.get("data", status_data))
+                                return {
+                                    "choices": [
+                                        {
+                                            "message": {
+                                                "content": content
                                             }
                                         }
                                     ]

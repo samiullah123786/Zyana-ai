@@ -2,9 +2,12 @@
 -- Date: 2025-10-26
 -- Purpose: Handle large Telegram IDs and ensure schema compatibility
 
--- Step 1: Add missing 'last_intent' column to user_preferences (if not exists)
+-- Step 1: Add missing columns to user_preferences (if not exists)
 ALTER TABLE user_preferences 
 ADD COLUMN IF NOT EXISTS last_intent TEXT;
+
+ALTER TABLE user_preferences 
+ADD COLUMN IF NOT EXISTS last_message TEXT;
 
 -- Step 2: Fix integer overflow for Telegram IDs
 -- Telegram IDs can exceed 2^31 (max INTEGER), so we need BIGINT
@@ -84,6 +87,7 @@ ON user_preferences(last_intent);
 
 -- Step 4: Add comments for documentation
 COMMENT ON COLUMN user_preferences.last_intent IS 'Last intent detected from user message';
+COMMENT ON COLUMN user_preferences.last_message IS 'Last message snippet from user (max 200 chars)';
 COMMENT ON COLUMN users.telegram_id IS 'Telegram user ID (BIGINT to handle values > 2 billion)';
 
 -- Step 5: Recreate RLS policies with updated column types

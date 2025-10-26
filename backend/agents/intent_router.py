@@ -426,20 +426,10 @@ Now analyze this message:"""
             result: Intent routing result
         """
         try:
-            # Build update data (excluding 'last_intent' which may not exist in schema)
-            update_data = {
-                "user_id": user_id,
-                "last_message": message[:200],  # Store snippet
-                "updated_at": datetime.now().isoformat()
-            }
-            
-            # Upsert (insert or update) - only update columns that exist
-            supabase_client.admin.table("user_preferences").upsert(
-                update_data,
-                on_conflict="user_id"
-            ).execute()
-            
-            logger.info(f"💾 Updated context for user {user_id}")
+            # Skip user_preferences update if columns don't exist in schema
+            # Note: last_intent and last_message columns may not exist in all deployments
+            # The conversation is already logged in conversation_history table
+            logger.debug(f"⏩ Skipping user_preferences update (using conversation_history instead)")
             
         except Exception as e:
             logger.error(f"Error updating user context: {e}")
