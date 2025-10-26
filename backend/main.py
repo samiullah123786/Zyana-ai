@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 import logging
 import sys
 import traceback
+import re
 
 from config import settings
 from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin, feedback
@@ -60,16 +61,49 @@ app = FastAPI(
     redoc_url="/redoc" if settings.is_development else None,
 )
 
-# Configure CORS
+# Configure CORS with flexible origin matching
+def get_allowed_origins():
+    """Get allowed CORS origins based on environment and configuration."""
+    origins = []
+    
+    # Development: Allow all origins
+    if settings.is_development:
+        return ["*"]
+    
+    # Production: Build allowed origins list
+    
+    # 1. Add production frontend URL
+    origins.append("https://zyana.vercel.app")
+    
+    # 2. Add localhost for development
+    origins.append("http://localhost:3000")
+    origins.append("http://localhost:3001")
+    
+    # 3. Add custom frontend URL from environment
+    if settings.frontend_url:
+        origins.append(settings.frontend_url)
+    
+    # 4. Add custom CORS origins from environment (comma-separated)
+    if settings.cors_origins:
+        custom_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
+        origins.extend(custom_origins)
+    
+    # 5. Vercel preview deployments (*.vercel.app pattern)
+    # Note: This will be handled by allow_origin_regex below
+    
+    logger.info(f"✅ CORS allowed origins: {origins}")
+    
+    return origins
+
+# Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.is_development else [
-        "https://zyana.vercel.app",
-        "http://localhost:3000"
-    ],
+    allow_origins=get_allowed_origins(),
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow all Vercel preview deployments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 

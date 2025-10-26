@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     redis_session_ttl: int = Field(default=604800, alias="REDIS_SESSION_TTL")  # 7 days
     owner_name: str = Field(default="Sami", alias="OWNER_NAME")
     
+    # CORS Settings
+    frontend_url: Optional[str] = Field(default=None, alias="FRONTEND_URL")
+    cors_origins: Optional[str] = Field(default=None, alias="CORS_ORIGINS")  # Comma-separated list
+    
     # Memory & Learning Pipeline
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o", alias="OPENAI_MODEL")  # Primary chat model
