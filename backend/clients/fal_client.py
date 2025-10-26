@@ -125,23 +125,45 @@ class FalAIClient:
                         logger.debug(f"Full status data: {status_data}")
                         
                         # STEP 3: Extract output from COMPLETED status response
-                        # According to FAL AI docs, output should be in status response when COMPLETED
+                        # FAL AI returns output in nested structure: response.output.choices[0].message.content
                         output = None
                         
-                        # Try multiple locations for output (FAL AI response format variations)
-                        # Priority order: data.output > output > result
-                        if "data" in status_data and isinstance(status_data["data"], dict):
-                            output = status_data["data"].get("output")
+                        # FAL AI structure: response.output.choices[0].message.content
+                        if "response" in status_data:
+                            response = status_data["response"]
+                            if isinstance(response, dict) and "output" in response:
+                                output_obj = response["output"]
+                                if isinstance(output_obj, dict) and "choices" in output_obj:
+                                    choices = output_obj["choices"]
+                                    if isinstance(choices, list) and len(choices) > 0:
+                                        choice = choices[0]
+                                        if isinstance(choice, dict) and "message" in choice:
+                                            message = choice["message"]
+                                            if isinstance(message, dict) and "content" in message:
+                                                output = message["content"]
+                                                logger.info(f"✅ Extracted output from response.output.choices[0].message.content")
                         
+                        # Fallback 1: Direct data.output structure
+                        if not output and "data" in status_data and isinstance(status_data["data"], dict):
+                            output = status_data["data"].get("output")
+                            if output:
+                                logger.info(f"✅ Extracted output from data.output")
+                        
+                        # Fallback 2: Top-level output
                         if not output and "output" in status_data:
                             output = status_data.get("output")
+                            if output:
+                                logger.info(f"✅ Extracted output from top-level output")
                         
+                        # Fallback 3: Result field
                         if not output and "result" in status_data:
                             result = status_data.get("result")
                             if isinstance(result, dict):
                                 output = result.get("output")
                             elif isinstance(result, str):
                                 output = result
+                            if output:
+                                logger.info(f"✅ Extracted output from result")
                         
                         # Special case: Try response_url with POST (some FAL endpoints require this)
                         if not output and "response_url" in status_data:
