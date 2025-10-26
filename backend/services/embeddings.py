@@ -1,9 +1,10 @@
-"""Pluggable embedding service with support for multiple providers.
+"""OpenAI embedding service with automatic retry and chunking support.
 
-Supports:
-- OpenAI embeddings (primary, fast)
-- Fal AI embeddings (fallback, slower)
+Features:
+- OpenAI text-embedding-3-small (fast, reliable)
+- Automatic retry with exponential backoff
 - Text chunking for long documents
+- Token-aware processing
 """
 import logging
 from typing import List, Dict, Any
@@ -14,48 +15,34 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
-    """Pluggable embedding service with multiple provider support."""
+    """OpenAI-powered embedding service with retry logic and chunking."""
     
     def __init__(self):
-        """Initialize embedding service with configured provider."""
-        self.provider = settings.embedding_provider
-        self.model = settings.embedding_model
-        logger.info(f"✅ EmbeddingService initialized with provider: {self.provider}, model: {self.model}")
+        """Initialize embedding service with OpenAI."""
+        self.provider = "openai"  # OpenAI is now the only provider
+        self.model = settings.embedding_model  # Default: text-embedding-3-small
+        logger.info(f"✅ EmbeddingService initialized with OpenAI, model: {self.model}")
     
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10)
     )
     async def get_embedding(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for a list of texts.
+        """Generate embeddings for a list of texts using OpenAI.
         
         Args:
             texts: List of text strings to embed
             
         Returns:
-            List of embedding vectors
+            List of embedding vectors (each 1536 dimensions for text-embedding-3-small)
         """
         if not texts:
             return []
         
         try:
-            if self.provider == "openai":
-                return await self._get_openai_embeddings(texts)
-            elif self.provider == "fal":
-                return await self._get_fal_embeddings(texts)
-            else:
-                logger.warning(f"Unknown provider {self.provider}, falling back to OpenAI")
-                return await self._get_openai_embeddings(texts)
-                
+            return await self._get_openai_embeddings(texts)
         except Exception as e:
-            logger.error(f"❌ Error generating embeddings with {self.provider}: {e}")
-            # Try fallback provider
-            if self.provider == "fal":
-                logger.info("🔄 Falling back to OpenAI embeddings")
-                try:
-                    return await self._get_openai_embeddings(texts)
-                except Exception as fallback_error:
-                    logger.error(f"❌ Fallback also failed: {fallback_error}")
+            logger.error(f"❌ Error generating OpenAI embeddings: {e}", exc_info=True)
             raise
     
     async def _get_openai_embeddings(self, texts: List[str]) -> List[List[float]]:
@@ -77,24 +64,6 @@ class EmbeddingService:
             logger.error(f"❌ OpenAI embedding error: {e}")
             raise
     
-    async def _get_fal_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Get embeddings from Fal AI.
-        
-        Args:
-            texts: List of texts to embed
-            
-        Returns:
-            List of embedding vectors
-        """
-        from clients.fal_client import fal_client
-        
-        try:
-            embeddings = await fal_client.embed(texts)
-            logger.debug(f"✅ Generated {len(embeddings)} Fal embeddings")
-            return embeddings
-        except Exception as e:
-            logger.error(f"❌ Fal embedding error: {e}")
-            raise
     
     def chunk_text(
         self,

@@ -1,11 +1,15 @@
-"""Clients package for external API integrations."""
-from .fal_client import fal_client, FalAIClient
+"""Clients package for external API integrations.
+
+Primary AI provider: OpenAI (GPT-4o, text-embedding-3-small)
+Legacy providers moved to clients/legacy/
+"""
+from .openai_client import openai_client, OpenAIClient
 from .supabase_client import supabase_client, SupabaseClient
 from .qdrant_client import qdrant_client, ZyanaQdrantClient
 
 __all__ = [
-    "fal_client",
-    "FalAIClient",
+    "openai_client",
+    "OpenAIClient",
     "supabase_client",
     "SupabaseClient",
     "qdrant_client",

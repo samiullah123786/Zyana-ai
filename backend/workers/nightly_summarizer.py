@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 
-from clients.fal_client import fal_client
+from clients.openai_client import openai_client
 from clients.qdrant_client import qdrant_client
 from clients.supabase_client import supabase_client
 from services.embeddings import embedding_service
@@ -168,7 +168,7 @@ Conversation:
 
 Summary:"""
             
-            response = await fal_client.chat_simple(
+            response = await openai_client.chat_simple(
                 prompt,
                 system_prompt="You are a helpful assistant that creates concise summaries.",
                 temperature=0.3

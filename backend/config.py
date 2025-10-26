@@ -8,8 +8,8 @@ from pydantic import Field
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
-    # Fal AI
-    fal_api_key: str = Field(..., alias="FAL_API_KEY")
+    # Fal AI (Legacy - Optional for future use)
+    fal_api_key: Optional[str] = Field(default=None, alias="FAL_API_KEY")
     
     # Groq AI (Whisper Transcription)
     groq_api_key: str = Field(..., alias="GROQ_API_KEY")
@@ -77,6 +77,7 @@ class Settings(BaseSettings):
     
     # Memory & Learning Pipeline
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o", alias="OPENAI_MODEL")  # Primary chat model
     embedding_provider: str = Field(default="openai", alias="EMBEDDING_PROVIDER")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     mirror_embed_k: int = Field(default=5, alias="MIRROR_EMBED_K")

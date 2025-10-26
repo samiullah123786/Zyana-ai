@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Optional
 from datetime import date
 import uuid
 
-from clients.fal_client import fal_client
+from clients.openai_client import openai_client
 from clients.qdrant_client import qdrant_client
 from clients.supabase_client import supabase_client
 from models.schemas import MemorySearchResponse, MemorySearchResult
@@ -138,8 +138,8 @@ class MemoryService:
             results=results_text
         )
         
-        # Generate summary
-        summary = await fal_client.chat_simple(
+        # Generate summary with OpenAI
+        summary = await openai_client.chat_simple(
             prompt=prompt,
             temperature=0.3
         )
@@ -208,13 +208,13 @@ class MemoryService:
 
 Summary:"""
             
-            summary = await fal_client.chat_simple(
+            summary = await openai_client.chat_simple(
                 prompt=summary_prompt,
                 temperature=0.3
             )
             
-            # Embed summary
-            embedding = await fal_client.embed_single(summary)
+            # Embed summary with OpenAI
+            embedding = await openai_client.embed_single(summary)
             embedding_id = str(uuid.uuid4())
             
             await qdrant_client.add_memory(

@@ -24,8 +24,8 @@ logging.getLogger("httpx").setLevel(logging.INFO)
 logging.getLogger("hpack").setLevel(logging.WARNING)
 logging.getLogger("h2").setLevel(logging.WARNING)
 
-# Keep our code at DEBUG for detailed tracking
-logging.getLogger("clients.fal_client").setLevel(logging.INFO)
+# Keep our code at INFO for important events
+logging.getLogger("clients.openai_client").setLevel(logging.INFO)
 logging.getLogger("agents.intent_router").setLevel(logging.INFO)
 logging.getLogger("routers.webhook").setLevel(logging.INFO)
 

@@ -1,19 +1,20 @@
 """Intelligent Intent Router - Zyana's Core Brain.
 
-This module uses ChatGPT-5 via Fal AI to intelligently route messages
+This module uses OpenAI GPT-4o to intelligently route messages
 to the appropriate sub-agent or respond conversationally.
 
 Enhanced with:
 - Strict function calling for calendar intents
 - Multi-turn clarification support
 - Session-based conversation management
+- Powered by OpenAI GPT-4o (fast, intelligent, reliable)
 """
 import logging
 import json
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-from clients.fal_client import fal_client
+from clients.openai_client import openai_client
 from clients.supabase_client import supabase_client
 from services.session_manager import session_manager
 from services.datetime_parser import datetime_parser
@@ -29,25 +30,25 @@ class IntentRouter:
     """Core brain that routes intents and maintains conversation context."""
     
     def __init__(self):
-        """Initialize intent router with Fal AI using Claude 3.5 Sonnet.
+        """Initialize intent router with OpenAI GPT-4o.
         
-        Claude 3.5 Sonnet is:
-        - Fast and intelligent
-        - Great at understanding context
-        - Excellent at structured output
-        - Proven to work with FAL AI
+        GPT-4o is:
+        - Fast and highly intelligent
+        - Excellent at understanding context and nuance
+        - Superior at structured JSON output
+        - Reliable with low latency
+        - Cost-effective for production use
         
-        Available alternatives (in order of preference):
-        1. anthropic/claude-3.7-sonnet (latest, premium)
-        2. anthropic/claude-3.5-sonnet (reliable, fast)
-        3. openai/gpt-4o (OpenAI's best)
-        4. google/gemini-2.5-flash (fast, cost-effective)
+        Available alternatives:
+        1. gpt-4o (default, best balance of speed/intelligence)
+        2. gpt-4-turbo (slightly slower, more capable)
+        3. gpt-3.5-turbo (fastest, cheapest, good for simple tasks)
         """
-        # Use Claude 3.5 Sonnet - proven reliable model
-        self.model = "anthropic/claude-3.5-sonnet"
+        # Use GPT-4o from settings (default: "gpt-4o")
+        self.model = getattr(settings, 'openai_model', 'gpt-4o')
         
-        logger.info(f"✅ Intent Router initialized with {self.model}")
-        logger.info(f"🧠 Using Claude 3.5 Sonnet for intelligent conversation")
+        logger.info(f"✅ Intent Router initialized with OpenAI {self.model}")
+        logger.info(f"🧠 Using OpenAI for intelligent conversation routing")
     
     async def route_intent(
         self,
@@ -307,7 +308,7 @@ Now analyze this message:"""
         message: str,
         system_prompt: str
     ) -> str:
-        """Call ChatGPT-5 via Fal AI.
+        """Call OpenAI GPT-4o for intent routing and conversation.
         
         Args:
             message: User message
@@ -317,19 +318,19 @@ Now analyze this message:"""
             AI response as JSON string
         """
         try:
-            # Use Fal AI client (chat_simple doesn't accept max_tokens)
-            response = await fal_client.chat_simple(
+            # Use OpenAI client with automatic retry logic
+            response = await openai_client.chat_simple(
                 prompt=message,
                 system_prompt=system_prompt,
                 model=self.model,
-                temperature=0.3  # Lower for more consistent JSON
+                temperature=0.3  # Lower for more consistent JSON output
             )
             
-            logger.info(f"🤖 ChatGPT-5 response received ({len(response)} chars)")
+            logger.info(f"🤖 OpenAI GPT-4o response received ({len(response)} chars)")
             return response
             
         except Exception as e:
-            logger.error(f"❌ ChatGPT-5 API error: {e}", exc_info=True)
+            logger.error(f"❌ OpenAI API error: {e}", exc_info=True)
             # Return a safe fallback response for the intent router
             return '{"intent": "chat", "response": "I\'m having trouble reaching my brain right now, Sami. Please try again shortly.", "confidence": 0.0}'
     
