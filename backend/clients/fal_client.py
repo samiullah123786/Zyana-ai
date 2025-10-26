@@ -122,38 +122,65 @@ class FalAIClient:
                     
                     if current_status == "COMPLETED":
                         logger.info(f"✅ Job COMPLETED after {(attempt + 1) * 2} seconds")
+                        logger.debug(f"Full status data: {status_data}")
                         
                         # STEP 3: Extract output from COMPLETED status response
-                        # FAL AI returns the output directly in the status response when COMPLETED
+                        # According to FAL AI docs, output should be in status response when COMPLETED
                         output = None
                         
-                        # Try to extract output from status_data
-                        if "data" in status_data:
+                        # Try multiple locations for output (FAL AI response format variations)
+                        # Priority order: data.output > output > result
+                        if "data" in status_data and isinstance(status_data["data"], dict):
                             output = status_data["data"].get("output")
-                        elif "output" in status_data:
+                        
+                        if not output and "output" in status_data:
                             output = status_data.get("output")
                         
-                        # If no output in status, try fetching from response_url
+                        if not output and "result" in status_data:
+                            result = status_data.get("result")
+                            if isinstance(result, dict):
+                                output = result.get("output")
+                            elif isinstance(result, str):
+                                output = result
+                        
+                        # Special case: Try response_url with POST (some FAL endpoints require this)
                         if not output and "response_url" in status_data:
-                            logger.info(f"📥 Fetching result from response_url: {status_data['response_url']}")
+                            logger.info(f"📥 Trying response_url with POST: {status_data['response_url']}/result")
                             try:
-                                result_response = await client.get(
-                                    status_data["response_url"],
-                                    headers=self.headers
+                                # Try POST to /result endpoint
+                                result_response = await client.post(
+                                    f"{status_data['response_url']}/result",
+                                    headers=self.headers,
+                                    json={}  # Empty body for result fetch
                                 )
                                 result_response.raise_for_status()
                                 result_data = result_response.json()
                                 
-                                logger.debug(f"Result data from response_url: {result_data}")
+                                logger.debug(f"Result from POST: {result_data}")
                                 
-                                # Extract output from result
-                                if "data" in result_data:
+                                # Extract output
+                                if "data" in result_data and isinstance(result_data["data"], dict):
                                     output = result_data["data"].get("output")
                                 elif "output" in result_data:
                                     output = result_data.get("output")
                                     
+                            except httpx.HTTPStatusError as e:
+                                if e.response.status_code == 422:
+                                    logger.warning(f"422 on result fetch - output might be in logs field")
+                                else:
+                                    logger.warning(f"HTTP {e.response.status_code} fetching result: {e.response.text[:200]}")
                             except Exception as e:
-                                logger.warning(f"Failed to fetch from response_url: {e}", exc_info=True)
+                                logger.warning(f"Error fetching from response_url: {e}")
+                        
+                        # Last resort: Check if output is in logs field (some models put it there)
+                        if not output and "logs" in status_data and status_data["logs"]:
+                            logger.info("Checking logs field for output...")
+                            logs = status_data["logs"]
+                            if isinstance(logs, list) and len(logs) > 0:
+                                # Get last log entry which might be the output
+                                last_log = logs[-1]
+                                if isinstance(last_log, dict) and "message" in last_log:
+                                    output = last_log["message"]
                         
                         if output:
                             logger.info(f"✅ Got output: {len(output)} chars")
@@ -167,13 +194,18 @@ class FalAIClient:
                                 ]
                             }
                         else:
-                            # No output found anywhere
-                            logger.error(f"❌ No output in COMPLETED response. Status data: {status_data}")
+                            # No output found anywhere - this might be a FAL API issue
+                            logger.error(f"❌ COMPLETED but NO OUTPUT found!")
+                            logger.error(f"Status keys: {list(status_data.keys())}")
+                            logger.error(f"Request ID: {request_id}")
+                            logger.error(f"Metrics: {status_data.get('metrics')}")
+                            
+                            # Return a more descriptive fallback
                             return {
                                 "choices": [
                                     {
                                         "message": {
-                                            "content": "Hey Sami! I processed your request but the response came back empty. Could you try again?"
+                                            "content": "Hey Sami! 👋 I'm having a technical issue with my AI brain right now. The job completed but returned no text. This might be a temporary FAL AI service issue. Could you try again in a moment?"
                                         }
                                     }
                                 ]

@@ -30,7 +30,7 @@ class IntentRouter:
     
     def __init__(self):
         """Initialize intent router with Fal AI (ChatGPT-5)."""
-        self.model = "gpt-5-chat"  # ChatGPT-5 via Fal AI
+        self.model = "openai/gpt-5-chat"  # ChatGPT-5 via Fal AI (requires openai/ prefix)
         logger.info(f"✅ Intelligent Intent Router initialized with model: {self.model}")
     
     async def route_intent(
