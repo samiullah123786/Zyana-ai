@@ -475,3 +475,169 @@ async def delete_voice_log(log_id: str):
     except Exception as e:
         logger.error(f"Error deleting voice log: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health/full")
+async def get_full_health_report():
+    """Get comprehensive health report of all agents.
+    
+    Returns:
+        Dict with system status and agent health details
+    """
+    try:
+        from services.health_monitor import health_monitor
+        
+        logger.info("🏥 Generating full health report...")
+        
+        report = await health_monitor.run_full_health_check()
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "overall_status": report["status"],
+            "duration_seconds": report["duration_seconds"],
+            "summary": report["summary"],
+            "agents": report["agents"],
+            "errors": report["errors"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating health report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health/status")
+async def get_system_status():
+    """Get quick system status summary.
+    
+    Returns:
+        Dict with overall status and agent counts
+    """
+    try:
+        from services.agent_registry import agent_registry
+        
+        system_status = agent_registry.get_system_status()
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "overall_status": system_status["overall_status"],
+            "total_agents": system_status["total_agents"],
+            "healthy": system_status["healthy"],
+            "degraded": system_status["degraded"],
+            "failed": system_status["failed"],
+            "unknown": system_status["unknown"]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting system status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health/agents")
+async def list_all_agents():
+    """List all registered agents with their status.
+    
+    Returns:
+        List of agents with metadata
+    """
+    try:
+        from services.agent_registry import agent_registry
+        
+        agents = agent_registry.list_agents(include_health=True)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "count": len(agents),
+            "agents": agents
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing agents: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/health/check/{agent_name}")
+async def check_agent_health(agent_name: str):
+    """Run health check on a specific agent.
+    
+    Args:
+        agent_name: Agent name to check
+        
+    Returns:
+        Agent health status
+    """
+    try:
+        from services.health_monitor import health_monitor
+        
+        result = await health_monitor.check_agent_health(agent_name)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "agent": agent_name,
+            "status": result["status"],
+            "message": result.get("message", ""),
+            "dependencies": result.get("dependencies", {})
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking agent health: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health/logs")
+async def get_health_logs(limit: int = 50):
+    """Get recent health check logs.
+    
+    Args:
+        limit: Maximum number of logs to return
+        
+    Returns:
+        List of recent health logs
+    """
+    try:
+        result = supabase_client.admin.table("system_health_log").select(
+            "*"
+        ).order("timestamp", desc=True).limit(limit).execute()
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "count": len(result.data) if result.data else 0,
+            "logs": result.data or []
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting health logs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health/summary/daily")
+async def get_daily_summaries(days: int = 7):
+    """Get daily health summaries.
+    
+    Args:
+        days: Number of days to retrieve
+        
+    Returns:
+        List of daily summaries
+    """
+    try:
+        since_date = (datetime.now() - timedelta(days=days)).date().isoformat()
+        
+        result = supabase_client.admin.table("daily_health_summary").select(
+            "*"
+        ).gte("date", since_date).order("date", desc=True).execute()
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "count": len(result.data) if result.data else 0,
+            "summaries": result.data or []
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting daily summaries: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

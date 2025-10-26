@@ -117,6 +117,14 @@ async def startup_event():
         logger.info(f"Backend URL: http://{settings.backend_host}:{settings.backend_port}")
         logger.info("="*60)
         
+        # Initialize agent registry with all agents
+        try:
+            from services.agent_registry import register_all_agents
+            register_all_agents()
+            logger.info("✅ Agent registry initialized")
+        except Exception as e:
+            logger.error(f"❌ Agent registry initialization failed: {e}", exc_info=True)
+        
         # Test critical imports
         try:
             from agents.finance import finance_agent
