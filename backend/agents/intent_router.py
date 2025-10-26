@@ -426,15 +426,14 @@ Now analyze this message:"""
             result: Intent routing result
         """
         try:
-            # Update user_preferences with last intent
+            # Build update data (excluding 'last_intent' which may not exist in schema)
             update_data = {
                 "user_id": user_id,
-                "last_intent": result["intent"],
                 "last_message": message[:200],  # Store snippet
                 "updated_at": datetime.now().isoformat()
             }
             
-            # Upsert (insert or update)
+            # Upsert (insert or update) - only update columns that exist
             supabase_client.admin.table("user_preferences").upsert(
                 update_data,
                 on_conflict="user_id"

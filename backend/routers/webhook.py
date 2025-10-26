@@ -173,7 +173,8 @@ async def receive_message(
         
         # Log activity for routine learning
         from agents.routine_optimizer import routine_optimizer
-        user_id_int = 1  # TODO: Map telegram_id to internal user_id
+        from services.user_mapper import user_mapper
+        user_id_int = await user_mapper.get_internal_user_id(webhook_msg.user_id)
         await routine_optimizer.observe_activity(user_id_int, datetime.now())
         
         # Store message sample for mirror mode learning
@@ -655,7 +656,8 @@ async def _handle_telegram_command(command: str, user_id: str) -> str:
     
     elif cmd == "/list_invoices":
         from agents.invoice_tracker import invoice_tracker
-        user_id_int = 1  # TODO: Map telegram_id to user_id
+        from services.user_mapper import user_mapper
+        user_id_int = await user_mapper.get_internal_user_id(user_id)
         invoices = await invoice_tracker.list_invoices(user_id=user_id_int)
         
         if not invoices:
@@ -709,7 +711,8 @@ async def _handle_telegram_command(command: str, user_id: str) -> str:
     
     elif cmd == "/list_reminders":
         from agents.notification_scheduler import notification_scheduler
-        user_id_int = 1  # TODO: Map telegram_id to user_id
+        from services.user_mapper import user_mapper
+        user_id_int = await user_mapper.get_internal_user_id(user_id)
         notifications = await notification_scheduler.list_scheduled(user_id_int)
         
         if not notifications:
@@ -738,19 +741,22 @@ async def _handle_telegram_command(command: str, user_id: str) -> str:
     
     elif cmd == "/mirror_mode_on":
         from services.mirror_mode import mirror_mode_service
-        user_id_int = 1  # TODO: Map telegram_id to user_id
+        from services.user_mapper import user_mapper
+        user_id_int = await user_mapper.get_internal_user_id(user_id)
         result = await mirror_mode_service.enable_mirror_mode(user_id_int)
         return result.get("message")
     
     elif cmd == "/mirror_mode_off":
         from services.mirror_mode import mirror_mode_service
-        user_id_int = 1  # TODO: Map telegram_id to user_id
+        from services.user_mapper import user_mapper
+        user_id_int = await user_mapper.get_internal_user_id(user_id)
         result = await mirror_mode_service.disable_mirror_mode(user_id_int)
         return result.get("message")
     
     elif cmd == "/my_style":
         from services.mirror_mode import mirror_mode_service
-        user_id_int = 1  # TODO: Map telegram_id to user_id
+        from services.user_mapper import user_mapper
+        user_id_int = await user_mapper.get_internal_user_id(user_id)
         result = await mirror_mode_service.get_style_summary(user_id_int)
         return result.get("message")
     

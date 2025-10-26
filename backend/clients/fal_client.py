@@ -96,8 +96,8 @@ class FalAIClient:
                     if not status_url:
                         raise Exception("No status URL in queue response")
                     
-                    # Poll for result (increased timeout to 30 seconds for complex LLM requests)
-                    max_attempts = 15  # 15 attempts, 2 seconds each = 30 seconds
+                    # Poll for result (increased timeout to 60 seconds for complex LLM requests)
+                    max_attempts = 30  # 30 attempts, 2 seconds each = 60 seconds
                     for attempt in range(max_attempts):
                         await asyncio.sleep(2)
                         
@@ -105,10 +105,16 @@ class FalAIClient:
                         status_response.raise_for_status()
                         status_data = status_response.json()
                         
-                        logger.debug(f"Poll attempt {attempt + 1}/{max_attempts}: {status_data.get('status')}")
+                        current_status = status_data.get('status')
+                        logger.debug(f"Poll attempt {attempt + 1}/{max_attempts}: {current_status}")
                         
-                        if status_data.get("status") == "COMPLETED":
+                        # Log progress every 5 attempts
+                        if attempt % 5 == 0 and attempt > 0:
+                            logger.info(f"⏳ FAL AI still processing... ({attempt * 2}s elapsed, status: {current_status})")
+                        
+                        if current_status == "COMPLETED":
                             if "output" in status_data:
+                                logger.info(f"✅ FAL AI completed after {(attempt + 1) * 2} seconds")
                                 return {
                                     "choices": [
                                         {
@@ -118,11 +124,13 @@ class FalAIClient:
                                         }
                                     ]
                                 }
-                        elif status_data.get("status") == "FAILED":
+                        elif current_status == "FAILED":
                             error_msg = status_data.get('error', 'Unknown error')
+                            logger.error(f"❌ FAL AI job failed: {error_msg}")
                             raise Exception(f"FAL AI job failed: {error_msg}")
                     
-                    # Improved timeout message with debugging info
+                    # Timeout - log detailed info for debugging
+                    logger.error(f"⏰ FAL AI timeout after {max_attempts * 2}s. Last status: {status_data.get('status')}")
                     raise Exception(f"FAL AI job timed out after {max_attempts * 2} seconds. Status URL: {status_url}")
                 
                 # Direct response (immediate result)

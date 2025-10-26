@@ -80,15 +80,24 @@ class MirrorModeService:
         """Check if mirror mode is enabled for a user.
         
         Args:
-            user_id: User ID
+            user_id: User ID (can be Telegram ID or internal ID)
             
         Returns:
             True if enabled
         """
         try:
+            # If user_id is large (likely Telegram ID), convert to internal ID
+            from services.user_mapper import user_mapper
+            
+            if isinstance(user_id, str) or user_id > 2147483647:  # Max PostgreSQL INTEGER
+                # It's a Telegram ID, convert it
+                internal_id = await user_mapper.get_internal_user_id(str(user_id))
+            else:
+                internal_id = user_id
+            
             result = supabase_client.admin.table("users").select(
                 "mirror_mode_enabled"
-            ).eq("id", user_id).execute()
+            ).eq("id", internal_id).execute()
             
             if result.data:
                 return result.data[0].get("mirror_mode_enabled", False)
@@ -96,7 +105,7 @@ class MirrorModeService:
             return False
             
         except Exception as e:
-            logger.error(f"Error checking mirror mode: {e}", exc_info=True)
+            logger.error(f"Error checking mirror mode for user {user_id}: {e}", exc_info=True)
             return False
     
     async def add_message_sample(
