@@ -35,6 +35,9 @@ class Settings(BaseSettings):
         default="http://localhost:8000/auth/google/callback",
         alias="GOOGLE_REDIRECT_URI"
     )
+    google_credentials_path: Optional[str] = Field(default=None, alias="GOOGLE_CREDENTIALS_PATH")
+    google_token_path: Optional[str] = Field(default=None, alias="GOOGLE_TOKEN_PATH")
+    google_sheets_folder_id: Optional[str] = Field(default=None, alias="GOOGLE_SHEETS_FOLDER_ID")
     
     # Supabase
     supabase_url: str = Field(..., alias="SUPABASE_URL")

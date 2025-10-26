@@ -30,7 +30,11 @@ logger = logging.getLogger(__name__)
 PAKISTAN_TZ = pytz.timezone(settings.default_timezone)
 
 TOKEN_FILE = Path("config/google_token.json")
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES = [
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/spreadsheets',
+    'https://www.googleapis.com/auth/drive.file'
+]
 
 
 class CalendarAgent:

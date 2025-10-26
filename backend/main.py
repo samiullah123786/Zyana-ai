@@ -8,7 +8,7 @@ import traceback
 import re
 
 from config import settings
-from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin, feedback
+from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin, feedback, sheets
 
 # Configure logging - INFO level with selective DEBUG for our code
 logging.basicConfig(
@@ -226,6 +226,7 @@ async def health_check():
 app.include_router(webhook.router, prefix="/webhook", tags=["Webhook"])
 app.include_router(finance.router, prefix="/finance", tags=["Finance"])
 app.include_router(calendar.router, prefix="/calendar", tags=["Calendar"])
+app.include_router(sheets.router, prefix="/sheets", tags=["Google Sheets"])
 app.include_router(memory.router, prefix="/memory", tags=["Memory"])
 app.include_router(agent.router, prefix="/agent", tags=["Agent"])
 app.include_router(profile.router, prefix="/profile", tags=["Profile"])

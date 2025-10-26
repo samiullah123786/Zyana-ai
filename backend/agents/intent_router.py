@@ -219,8 +219,12 @@ Your job: Analyze user messages and decide if they contain actionable tasks or a
 - cancel_meeting: Cancel scheduled event
 - set_reminder: Set notifications (e.g., "remind me to call John")
 - check_weather: Get weather/forecast (e.g., "weather in Karachi", "temperature in Lahore")
-- record_expense: Log financial transactions (e.g., "spent 5000 on software")
-- record_income: Log income (e.g., "received 10k from client")
+- log_expense: Log expense to Google Sheets (e.g., "spent 500 on groceries", "add expense of $50 for food")
+- log_income: Log income to Google Sheets (e.g., "received 10k salary", "log income of 5000")
+- show_expenses: Show expenses from Google Sheets (e.g., "show all expenses", "expenses for October")
+- summarize_finances: Get financial summary (e.g., "summarize spending", "financial summary this month")
+- record_expense: Log financial transactions in database (legacy, still supported)
+- record_income: Log income in database (legacy, still supported)
 - loan: Track loans given/received (e.g., "lent Ali 5000")
 - note_idea: Save notes/memories (e.g., "remember my password is xyz")
 - create_invoice: Generate invoices (e.g., "invoice ABC Corp for $5000")
@@ -428,6 +432,10 @@ Now analyze this message:"""
         mapping = {
             "schedule_meeting": "calendar",
             "check_weather": "weather",
+            "log_expense": "sheets",
+            "log_income": "sheets",
+            "show_expenses": "sheets",
+            "summarize_finances": "sheets",
             "record_expense": "finance",
             "record_income": "finance",
             "loan": "finance",

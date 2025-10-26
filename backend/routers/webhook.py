@@ -227,6 +227,30 @@ async def receive_message(
                 # Fallback to a generic error message
                 response_message = "Couldn't fetch the weather right now. Please try again later! 🌦"
         
+        elif intent_result['intent'] in ['log_expense', 'log_income', 'show_expenses', 'summarize_finances']:
+            # Smart Finance Agent - Google Sheets operations
+            from agents.smart_finance import smart_finance_agent
+            try:
+                if intent_result['intent'] == 'log_expense':
+                    finance_result = await smart_finance_agent.log_expense(intent_result, webhook_msg.user_id)
+                elif intent_result['intent'] == 'log_income':
+                    finance_result = await smart_finance_agent.log_income(intent_result, webhook_msg.user_id)
+                elif intent_result['intent'] == 'show_expenses':
+                    finance_result = await smart_finance_agent.show_expenses(intent_result, webhook_msg.user_id)
+                elif intent_result['intent'] == 'summarize_finances':
+                    finance_result = await smart_finance_agent.summarize_finances(intent_result, webhook_msg.user_id)
+                
+                # Use smart finance agent's response
+                if finance_result.get('success'):
+                    response_message = finance_result.get('message', response_message)
+                    logger.info(f"💰 Smart Finance: {intent_result['intent']} executed successfully")
+                else:
+                    response_message = finance_result.get('message', response_message)
+            except Exception as e:
+                logger.error(f"Smart Finance execution error: {e}", exc_info=True)
+                # Fallback to a generic error message
+                response_message = "Sorry, I couldn't process that financial request. Make sure your Google account is connected!"
+        
         # For ALL other intents (finance, chat, etc.), TRUST the intent_router's response
         # No need to fall back to old parser - intent_router handles everything
         
