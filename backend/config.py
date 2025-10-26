@@ -90,6 +90,16 @@ class Settings(BaseSettings):
     mirror_embed_k: int = Field(default=5, alias="MIRROR_EMBED_K")
     memory_summary_days: int = Field(default=90, alias="MEMORY_SUMMARY_DAYS")
     
+    # Multi-Layer Memory System
+    memory_ttl: int = Field(default=3600, alias="MEMORY_TTL")  # Redis cache TTL (1 hour)
+    max_chat_history: int = Field(default=10, alias="MAX_CHAT_HISTORY")  # Max messages to include
+    semantic_search_k: int = Field(default=3, alias="SEMANTIC_SEARCH_K")  # Top K semantic results
+    
+    # Health Monitoring & Self-Awareness
+    health_check_interval: int = Field(default=604800, alias="HEALTH_CHECK_INTERVAL")  # Weekly (seconds)
+    daily_summary_time: str = Field(default="23:30", alias="DAILY_SUMMARY_TIME")  # 11:30 PM
+    enable_auto_repair: bool = Field(default=True, alias="ENABLE_AUTO_REPAIR")  # Enable auto-healing
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
