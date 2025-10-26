@@ -123,74 +123,57 @@ class FalAIClient:
                     if current_status == "COMPLETED":
                         logger.info(f"✅ Job COMPLETED after {(attempt + 1) * 2} seconds")
                         
-                        # STEP 3: Fetch the ACTUAL RESULT from the result endpoint
-                        # CRITICAL: FAL AI requires POST (not GET) with requestId in body!
-                        result_url = f"{self.base_url}/fal-ai/any-llm/result"
-                        logger.info(f"📥 Fetching result from: {result_url}")
+                        # STEP 3: Extract output from COMPLETED status response
+                        # FAL AI returns the output directly in the status response when COMPLETED
+                        output = None
                         
-                        try:
-                            # Use POST with requestId in JSON body (per official FAL AI docs)
-                            result_response = await client.post(
-                                result_url,
-                                headers=self.headers,
-                                json={"requestId": request_id}
-                            )
-                            result_response.raise_for_status()
-                            result_data = result_response.json()
-                            
-                            logger.debug(f"Result data: {result_data}")
-                            
-                            # Extract output per FAL AI schema: result_data["data"]["output"]
-                            output = None
-                            if "data" in result_data:
-                                output = result_data["data"].get("output")
-                            
-                            # Fallback: try top-level output
-                            if not output:
-                                output = result_data.get("output")
-                            
-                            if output:
-                                logger.info(f"✅ Got output: {len(output)} chars")
-                                return {
-                                    "choices": [
-                                        {
-                                            "message": {
-                                                "content": output
-                                            }
-                                        }
-                                    ]
-                                }
-                            else:
-                                # No output even after fetching result
-                                logger.error(f"❌ No output in result data: {result_data}")
-                                return {
-                                    "choices": [
-                                        {
-                                            "message": {
-                                                "content": "Hey Sami! I processed your request but need a moment to formulate my thoughts. Could you try rephrasing?"
-                                            }
-                                        }
-                                    ]
-                                }
-                        except httpx.HTTPStatusError as e:
-                            logger.error(f"❌ Failed to fetch result (HTTP {e.response.status_code}): {e}", exc_info=True)
-                            logger.error(f"Response body: {e.response.text}")
+                        # Try to extract output from status_data
+                        if "data" in status_data:
+                            output = status_data["data"].get("output")
+                        elif "output" in status_data:
+                            output = status_data.get("output")
+                        
+                        # If no output in status, try fetching from response_url
+                        if not output and "response_url" in status_data:
+                            logger.info(f"📥 Fetching result from response_url: {status_data['response_url']}")
+                            try:
+                                result_response = await client.get(
+                                    status_data["response_url"],
+                                    headers=self.headers
+                                )
+                                result_response.raise_for_status()
+                                result_data = result_response.json()
+                                
+                                logger.debug(f"Result data from response_url: {result_data}")
+                                
+                                # Extract output from result
+                                if "data" in result_data:
+                                    output = result_data["data"].get("output")
+                                elif "output" in result_data:
+                                    output = result_data.get("output")
+                                    
+                            except Exception as e:
+                                logger.warning(f"Failed to fetch from response_url: {e}", exc_info=True)
+                        
+                        if output:
+                            logger.info(f"✅ Got output: {len(output)} chars")
                             return {
                                 "choices": [
                                     {
                                         "message": {
-                                            "content": "I'm having a bit of trouble processing that right now, Sami. Mind trying again?"
+                                            "content": output
                                         }
                                     }
                                 ]
                             }
-                        except Exception as e:
-                            logger.error(f"❌ Unexpected error fetching result: {e}", exc_info=True)
+                        else:
+                            # No output found anywhere
+                            logger.error(f"❌ No output in COMPLETED response. Status data: {status_data}")
                             return {
                                 "choices": [
                                     {
                                         "message": {
-                                            "content": "I'm having a bit of trouble processing that right now, Sami. Mind trying again?"
+                                            "content": "Hey Sami! I processed your request but the response came back empty. Could you try again?"
                                         }
                                     }
                                 ]
