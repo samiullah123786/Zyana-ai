@@ -106,21 +106,19 @@ async def receive_message(
     logger.info("=" * 80)
     
     try:
-        # Parse the message
-        parsed = await message_parser.parse(
-            webhook_msg.message,
-            context={"user_id": webhook_msg.user_id}
+        # Quick pre-check for "remember" keyword (lightweight regex)
+        is_memory_request = "remember" in webhook_msg.message.lower() and any(
+            phrase in webhook_msg.message.lower() 
+            for phrase in ["remember that", "remember this", "remember:", "don't forget"]
         )
         
-        logger.info(f"Parsed message: intent={parsed.intent}, confidence={parsed.confidence}, memory={parsed.is_memory_request}")
-        
         # Handle "remember" requests - save to long-term memory
-        if parsed.is_memory_request:
+        if is_memory_request:
             from memory.embed import memory_service
             try:
                 # Remove "remember" from text for clean storage
-                clean_text = parsed.raw_text.lower().replace("remember", "").replace("that", "").strip()
-                clean_text = clean_text if clean_text else parsed.raw_text
+                clean_text = webhook_msg.message.lower().replace("remember", "").replace("that", "").replace("this", "").strip()
+                clean_text = clean_text if clean_text else webhook_msg.message
                 
                 # Save to memory
                 await memory_service.add_memory(
@@ -128,7 +126,7 @@ async def receive_message(
                     metadata={
                         "type": "user_note",
                         "user_id": webhook_msg.user_id,
-                        "intent": parsed.intent,
+                        "intent": "memory",
                         "timestamp": datetime.now().isoformat()
                     }
                 )
@@ -152,49 +150,38 @@ async def receive_message(
                 logger.error(f"Error saving memory: {e}")
                 # Continue processing normally if memory save fails
         
-        # Check if we need more information
-        if parsed.missing_fields:
-            # Send follow-up question
-            response_message = await _generate_followup_question(parsed)
-            
-            # Send back to user
-            if webhook_msg.platform == "telegram":
-                background_tasks.add_task(
-                    send_telegram_message,
-                    webhook_msg.user_id,
-                    response_message
-                )
-            
-            return JSONResponse(content={
-                "status": "awaiting_input",
-                "message": response_message,
-                "missing_fields": parsed.missing_fields
-            })
-        
         # Log activity for routine learning
         from agents.routine_optimizer import routine_optimizer
         from services.user_mapper import user_mapper
         user_id_int = await user_mapper.get_internal_user_id(webhook_msg.user_id)
         await routine_optimizer.observe_activity(user_id_int, datetime.now())
         
-        # Store message sample for mirror mode learning
+        # Store message sample for mirror mode learning (will be populated after intent routing)
         from services.mirror_mode import mirror_mode_service
-        if await mirror_mode_service.is_mirror_mode_enabled(user_id_int):
-            await mirror_mode_service.add_message_sample(
-                user_id_int,
-                parsed.raw_text,
-                parsed.intent
-            )
         
         # Route to appropriate agent using NEW RAG-enabled intent router
         # The new intent_router automatically includes:
         # - RAG memory retrieval from Qdrant
         # - Mirror Mode style transformation
         # - User preferences and context
+        # - Intelligent conversation handling
+        logger.info("🤖 Routing through NEW intent_router (RAG + Mirror Mode enabled)")
+        
         intent_result = await intent_router.route_intent(
             message=webhook_msg.message,
             user_id=webhook_msg.user_id
         )
+        
+        logger.info(f"✅ Intent router result: intent={intent_result.get('intent')}, confidence={intent_result.get('confidence', 0)}")
+        
+        # Store message for mirror mode learning
+        if await mirror_mode_service.is_mirror_mode_enabled(user_id_int):
+            await mirror_mode_service.add_message_sample(
+                user_id_int,
+                webhook_msg.message,
+                intent_result.get('intent', 'unknown')
+            )
+            logger.info(f"📸 Stored message sample for Mirror Mode learning")
         
         # Extract response (already includes Mirror Mode transformation)
         response_message = intent_result.get('response', 'I received your message!')
@@ -203,25 +190,25 @@ async def receive_message(
         if intent_result.get('needs_clarification'):
             logger.info(f"📝 Clarification needed: {intent_result.get('clarification_question')}")
         
-        # Map intent to agent for actual execution
+        # Execute actions for specific intents (but always use intent_router's response)
         if intent_result['intent'] in ['schedule_meeting', 'reschedule_meeting', 'set_reminder']:
-            # Calendar agent - use create_event_from_intent
+            # Calendar agent - execute the actual event creation
             if not intent_result.get('needs_clarification'):
                 from agents.calendar import calendar_agent
-                event_result = await calendar_agent.create_event_from_intent(
-                    intent_result,
-                    webhook_msg.user_id
-                )
-                if event_result.get('success'):
-                    response_message = event_result.get('message', response_message)
-        elif intent_result['intent'] in ['record_expense', 'record_income', 'loan']:
-            # Finance agent
-            agent_response = await main_agent.route(parsed, user_id=webhook_msg.user_id)
-            response_message = agent_response.message
-        elif intent_result['intent'] != 'chat':
-            # Other intents - use old router for now
-            agent_response = await main_agent.route(parsed, user_id=webhook_msg.user_id)
-            response_message = agent_response.message
+                try:
+                    event_result = await calendar_agent.create_event_from_intent(
+                        intent_result,
+                        webhook_msg.user_id
+                    )
+                    if event_result.get('success'):
+                        # Use calendar's success message if available, otherwise keep intent_router's response
+                        response_message = event_result.get('message', response_message)
+                except Exception as e:
+                    logger.error(f"Calendar execution error: {e}", exc_info=True)
+                    # Keep intent_router's response even if execution fails
+        
+        # For ALL other intents (finance, chat, etc.), TRUST the intent_router's response
+        # No need to fall back to old parser - intent_router handles everything
         
         # Check for break suggestion
         break_suggestion = await routine_optimizer.suggest_break(user_id_int)
