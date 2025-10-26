@@ -207,6 +207,26 @@ async def receive_message(
                     logger.error(f"Calendar execution error: {e}", exc_info=True)
                     # Keep intent_router's response even if execution fails
         
+        elif intent_result['intent'] == 'check_weather':
+            # Weather agent - fetch real-time weather data
+            from agents.weather import weather_agent
+            try:
+                weather_result = await weather_agent.get_weather(
+                    webhook_msg.message,
+                    webhook_msg.user_id
+                )
+                if weather_result.get('success'):
+                    # Use weather agent's formatted response
+                    response_message = weather_result.get('message', response_message)
+                    logger.info(f"🌤 Weather fetched for {weather_result.get('city')}: {weather_result.get('data', {}).get('temperature')}°C")
+                else:
+                    # Use weather agent's error message (e.g., "city not found")
+                    response_message = weather_result.get('message', response_message)
+            except Exception as e:
+                logger.error(f"Weather execution error: {e}", exc_info=True)
+                # Fallback to a generic error message
+                response_message = "Couldn't fetch the weather right now. Please try again later! 🌦"
+        
         # For ALL other intents (finance, chat, etc.), TRUST the intent_router's response
         # No need to fall back to old parser - intent_router handles everything
         

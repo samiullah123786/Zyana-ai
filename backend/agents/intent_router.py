@@ -218,6 +218,7 @@ Your job: Analyze user messages and decide if they contain actionable tasks or a
 - reschedule_meeting: Change existing event time
 - cancel_meeting: Cancel scheduled event
 - set_reminder: Set notifications (e.g., "remind me to call John")
+- check_weather: Get weather/forecast (e.g., "weather in Karachi", "temperature in Lahore")
 - record_expense: Log financial transactions (e.g., "spent 5000 on software")
 - record_income: Log income (e.g., "received 10k from client")
 - loan: Track loans given/received (e.g., "lent Ali 5000")
@@ -318,6 +319,26 @@ User: "Hey Zyana, what's up?"
   "confidence": 1.0
 }}
 
+User: "What's the weather in Karachi?"
+{{
+  "intent": "check_weather",
+  "parameters": {{
+    "city": "Karachi"
+  }},
+  "response": "Let me check the weather in Karachi for you! 🌤",
+  "confidence": 1.0
+}}
+
+User: "Temperature in Lahore tomorrow"
+{{
+  "intent": "check_weather",
+  "parameters": {{
+    "city": "Lahore"
+  }},
+  "response": "Checking the forecast for Lahore! 🌡",
+  "confidence": 0.95
+}}
+
 **Critical Rules:**
 1. Output ONLY valid JSON, no markdown or extra text
 2. Use owner name "{owner_name}" when appropriate
@@ -406,6 +427,7 @@ Now analyze this message:"""
         """
         mapping = {
             "schedule_meeting": "calendar",
+            "check_weather": "weather",
             "record_expense": "finance",
             "record_income": "finance",
             "loan": "finance",
