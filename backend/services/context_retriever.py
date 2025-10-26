@@ -209,7 +209,7 @@ class ContextRetriever:
             point_id = f"calendar_{session_id}_{int(datetime.now().timestamp())}"
             
             await qdrant_client.add_memory(
-                memory_id=point_id,
+                point_id=point_id,
                 embedding=embedding,
                 payload=payload
             )
