@@ -29,9 +29,25 @@ class IntentRouter:
     """Core brain that routes intents and maintains conversation context."""
     
     def __init__(self):
-        """Initialize intent router with Fal AI (ChatGPT-5)."""
-        self.model = "openai/gpt-5-chat"  # ChatGPT-5 via Fal AI (requires openai/ prefix)
-        logger.info(f"✅ Intelligent Intent Router initialized with model: {self.model}")
+        """Initialize intent router with Fal AI using Claude 3.5 Sonnet.
+        
+        Claude 3.5 Sonnet is:
+        - Fast and intelligent
+        - Great at understanding context
+        - Excellent at structured output
+        - Proven to work with FAL AI
+        
+        Available alternatives (in order of preference):
+        1. anthropic/claude-3.7-sonnet (latest, premium)
+        2. anthropic/claude-3.5-sonnet (reliable, fast)
+        3. openai/gpt-4o (OpenAI's best)
+        4. google/gemini-2.5-flash (fast, cost-effective)
+        """
+        # Use Claude 3.5 Sonnet - proven reliable model
+        self.model = "anthropic/claude-3.5-sonnet"
+        
+        logger.info(f"✅ Intent Router initialized with {self.model}")
+        logger.info(f"🧠 Using Claude 3.5 Sonnet for intelligent conversation")
     
     async def route_intent(
         self,

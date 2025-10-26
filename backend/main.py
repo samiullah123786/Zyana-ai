@@ -9,15 +9,26 @@ import traceback
 from config import settings
 from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin, feedback
 
-# Configure logging with FORCE to stdout
+# Configure logging - INFO level with selective DEBUG for our code
 logging.basicConfig(
-    level=logging.DEBUG,  # Force DEBUG level to catch everything
+    level=logging.INFO,  # INFO for most things
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.StreamHandler(sys.stdout),  # Force to stdout
-        logging.StreamHandler(sys.stderr)   # Also stderr for errors
+        logging.StreamHandler(sys.stdout)
     ]
 )
+
+# Reduce noise from third-party libraries
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.INFO)
+logging.getLogger("hpack").setLevel(logging.WARNING)
+logging.getLogger("h2").setLevel(logging.WARNING)
+
+# Keep our code at DEBUG for detailed tracking
+logging.getLogger("clients.fal_client").setLevel(logging.INFO)
+logging.getLogger("agents.intent_router").setLevel(logging.INFO)
+logging.getLogger("routers.webhook").setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 # Global exception handler to catch EVERYTHING (even silent exceptions)
