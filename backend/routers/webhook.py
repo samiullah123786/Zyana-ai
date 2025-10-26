@@ -100,7 +100,10 @@ async def receive_message(
     Returns:
         JSONResponse with status
     """
-    logger.info(f"Received message from {webhook_msg.platform}: {webhook_msg.message}")
+    logger.info("=" * 80)
+    logger.info(f"🔹 WEBHOOK START: user={webhook_msg.user_id}, platform={webhook_msg.platform}")
+    logger.info(f"🔹 MESSAGE: {webhook_msg.message}")
+    logger.info("=" * 80)
     
     try:
         # Parse the message
@@ -244,7 +247,13 @@ async def receive_message(
         })
         
     except Exception as e:
-        logger.error(f"Error processing webhook message: {e}", exc_info=True)
+        logger.error("=" * 80)
+        logger.error(f"❌ CRITICAL ERROR in webhook processing!")
+        logger.error(f"❌ Error type: {type(e).__name__}")
+        logger.error(f"❌ Error message: {str(e)}")
+        logger.error(f"❌ User: {webhook_msg.user_id}, Message: {webhook_msg.message[:100] if len(webhook_msg.message) > 100 else webhook_msg.message}")
+        logger.error("=" * 80)
+        logger.error(f"Full stack trace:", exc_info=True)
         
         error_message = "Sorry, I encountered an error processing your message. Please try again."
         

@@ -20,13 +20,29 @@ class ZyanaQdrantClient:
     VECTOR_DIMENSION = 1536  # OpenAI ada-002 dimension
     
     def __init__(self):
-        """Initialize Qdrant client."""
-        self.client = QdrantClient(
-            url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key
-        )
-        self._ensure_collection()
-        logger.info(f"Qdrant client initialized: {settings.qdrant_url}")
+        """Initialize Qdrant client with fault-tolerant initialization."""
+        self.client = None
+        self.initialized = False
+        
+        try:
+            logger.info(f"🔌 Connecting to Qdrant: {settings.qdrant_url}")
+            self.client = QdrantClient(
+                url=settings.qdrant_url,
+                api_key=settings.qdrant_api_key,
+                timeout=10  # 10 second timeout
+            )
+            logger.info("✅ Qdrant client connected")
+            
+            # Try to ensure collection but don't crash if it fails
+            self._ensure_collection()
+            self.initialized = True
+            logger.info(f"✅ Qdrant client fully initialized: {settings.qdrant_url}")
+            
+        except Exception as e:
+            logger.error(f"❌ Qdrant initialization failed: {e}", exc_info=True)
+            logger.warning("⚠️ Qdrant features will be disabled. System will continue without vector memory.")
+            self.client = None
+            self.initialized = False
     
     def _ensure_collection(self):
         """Ensure the Zyana memory collection exists with proper indexes."""
@@ -150,6 +166,11 @@ class ZyanaQdrantClient:
             point_id: Unique ID for the vector
             collection_name: Optional collection name (defaults to COLLECTION_NAME)
         """
+        # Skip if not initialized
+        if not self.initialized or self.client is None:
+            logger.warning("⚠️ Qdrant not initialized, skipping memory addition")
+            return
+        
         try:
             # Handle different parameter styles
             final_id = point_id or vector_id
@@ -193,6 +214,11 @@ class ZyanaQdrantClient:
         Returns:
             List of search results with payload and score
         """
+        # Return empty if not initialized
+        if not self.initialized or self.client is None:
+            logger.warning("⚠️ Qdrant not initialized, skipping memory search")
+            return []
+        
         try:
             search_result = self.client.search(
                 collection_name=self.COLLECTION_NAME,
