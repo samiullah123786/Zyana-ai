@@ -20,23 +20,51 @@ class ZyanaQdrantClient:
     VECTOR_DIMENSION = 1536  # OpenAI ada-002 dimension
     
     def __init__(self):
-        """Initialize Qdrant client with fault-tolerant initialization."""
+        """Initialize Qdrant client with fault-tolerant initialization.
+        
+        Supports both Qdrant Cloud and self-hosted instances:
+        - Qdrant Cloud: Extract host from URL (no port needed, uses HTTPS)
+        - Self-hosted: Use full URL with port
+        """
         self.client = None
         self.initialized = False
         
         try:
-            logger.info(f"🔌 Connecting to Qdrant: {settings.qdrant_url}")
-            self.client = QdrantClient(
-                url=settings.qdrant_url,
-                api_key=settings.qdrant_api_key,
-                timeout=10  # 10 second timeout
-            )
-            logger.info("✅ Qdrant client connected")
+            qdrant_url = settings.qdrant_url
+            qdrant_api_key = settings.qdrant_api_key
+            
+            logger.info(f"🔌 Connecting to Qdrant: {qdrant_url}")
+            
+            # Check if this is Qdrant Cloud (contains .qdrant.io or .cloud.qdrant.io)
+            if ".qdrant.io" in qdrant_url or ".cloud.qdrant.io" in qdrant_url:
+                # Qdrant Cloud: Extract host from URL
+                # Format: https://cluster-id.region.cloud-provider.cloud.qdrant.io
+                host = qdrant_url.replace("https://", "").replace("http://", "")
+                # Remove trailing slash and port if present
+                host = host.rstrip("/").split(":")[0]
+                
+                logger.info(f"✅ Detected Qdrant Cloud, using host: {host}")
+                self.client = QdrantClient(
+                    host=host,
+                    api_key=qdrant_api_key,
+                    https=True,  # Qdrant Cloud uses HTTPS
+                    timeout=30  # Increase timeout for cloud
+                )
+            else:
+                # Self-hosted: Use full URL with port
+                logger.info(f"✅ Using self-hosted Qdrant with URL: {qdrant_url}")
+                self.client = QdrantClient(
+                    url=qdrant_url,
+                    api_key=qdrant_api_key,
+                    timeout=10
+                )
+            
+            logger.info("✅ Qdrant client connected successfully")
             
             # Try to ensure collection but don't crash if it fails
             self._ensure_collection()
             self.initialized = True
-            logger.info(f"✅ Qdrant client fully initialized: {settings.qdrant_url}")
+            logger.info(f"✅ Qdrant client fully initialized with collection: {self.COLLECTION_NAME}")
             
         except Exception as e:
             logger.error(f"❌ Qdrant initialization failed: {e}", exc_info=True)
