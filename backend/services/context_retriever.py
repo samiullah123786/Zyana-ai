@@ -4,6 +4,7 @@ Retrieves relevant calendar events and conversation history from Qdrant
 to provide context for AI decision-making.
 """
 import logging
+import uuid
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from clients.qdrant_client import qdrant_client
@@ -205,8 +206,8 @@ class ContextRetriever:
                 'created_at': datetime.now().isoformat()
             }
             
-            # Store in Qdrant using add_memory method
-            point_id = f"calendar_{session_id}_{int(datetime.now().timestamp())}"
+            # Store in Qdrant using add_memory method with UUID point_id (required by Qdrant)
+            point_id = str(uuid.uuid4())
             
             await qdrant_client.add_memory(
                 point_id=point_id,

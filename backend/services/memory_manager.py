@@ -8,6 +8,7 @@ Implements three layers of memory:
 import logging
 import json
 import re
+import uuid
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import pytz
@@ -295,8 +296,8 @@ class MemoryManager:
             if metadata:
                 payload.update(metadata)
             
-            # Store in Qdrant
-            point_id = f"memory_{user_id}_{int(datetime.now().timestamp())}"
+            # Store in Qdrant with UUID point_id (required by Qdrant)
+            point_id = str(uuid.uuid4())
             
             await qdrant_client.add_memory(
                 point_id=point_id,
