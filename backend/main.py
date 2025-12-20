@@ -8,7 +8,7 @@ import traceback
 import re
 
 from config import settings
-from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin, feedback, sheets
+from routers import webhook, finance, calendar, memory, agent, profile, invoice, client, notification, admin, feedback, sheets, vidify
 
 # Configure logging - INFO level with selective DEBUG for our code
 logging.basicConfig(
@@ -243,6 +243,7 @@ app.include_router(client.router, prefix="/client", tags=["Client"])
 app.include_router(notification.router, prefix="/notification", tags=["Notification"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 app.include_router(feedback.router, prefix="/feedback", tags=["Feedback"])
+app.include_router(vidify.router, prefix="/vidify", tags=["Vidify HQ Dashboard"])
 
 
 @app.exception_handler(Exception)

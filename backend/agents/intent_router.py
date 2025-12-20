@@ -319,6 +319,17 @@ Your job: Analyze user messages and decide if they contain actionable tasks or a
 - query_status: Check balances, summaries (e.g., "how much did I spend?")
 - chat: Casual conversation, no specific action
 
+**Vidify HQ Dashboard Actions:** (Agency management dashboard)
+- vidify_add_client: Add client to Vidify (e.g., "add client Ahmad to Vidify", "new Vidify client ABC Company")
+- vidify_add_project: Create project in Vidify (e.g., "create project Website for Ahmad in Vidify", "add Vidify project App Dev 50000")
+- vidify_log_income: Log income in Vidify (e.g., "log income 50000 from Ahmad in Vidify", "received 10k from client - add to Vidify")
+- vidify_log_expense: Log expense in Vidify (e.g., "add expense 5000 for equipment in Vidify", "Vidify expense 2000 software")
+- vidify_add_team_member: Add team member (e.g., "add Hamza to Vidify team as Editor", "new team member Ali salary 25000")
+- vidify_pay_salary: Pay team salary (e.g., "pay Hamza salary 25000 in Vidify", "pay salary to Ali 30000")
+- vidify_get_stats: Show dashboard stats (e.g., "show Vidify dashboard", "Vidify stats", "how's Vidify doing?")
+- vidify_list_clients: List Vidify clients (e.g., "show Vidify clients", "list clients in Vidify")
+- vidify_list_projects: List Vidify projects (e.g., "show Vidify projects", "active projects in Vidify")
+
 **User Context:**
 - Owner: {owner_name}
 - Last intent: {last_intent}
@@ -430,6 +441,48 @@ User: "Temperature in Lahore tomorrow"
   "confidence": 0.95
 }}
 
+User: "Add client Ahmad Khan to Vidify"
+{{
+  "intent": "vidify_add_client",
+  "parameters": {{
+    "name": "Ahmad Khan",
+    "company": null
+  }},
+  "response": "Adding Ahmad Khan to Vidify HQ clients! 🎬",
+  "confidence": 0.95
+}}
+
+User: "Log income 50000 from Ahmad in Vidify"
+{{
+  "intent": "vidify_log_income",
+  "parameters": {{
+    "amount": 50000,
+    "client_name": "Ahmad",
+    "description": "Client payment"
+  }},
+  "response": "Logging income of Rs 50,000 from Ahmad in Vidify! 💰",
+  "confidence": 0.95
+}}
+
+User: "Show Vidify dashboard"
+{{
+  "intent": "vidify_get_stats",
+  "parameters": {{}},
+  "response": "Getting Vidify HQ dashboard stats! 📊",
+  "confidence": 0.95
+}}
+
+User: "Pay Hamza salary 25000 in Vidify"
+{{
+  "intent": "vidify_pay_salary",
+  "parameters": {{
+    "name": "Hamza",
+    "amount": 25000
+  }},
+  "response": "Paying Hamza's salary of Rs 25,000 in Vidify! 💵",
+  "confidence": 0.95
+}}
+
 **Critical Rules:**
 1. Output ONLY valid JSON, no markdown or extra text
 2. Use owner name "{owner_name}" when appropriate
@@ -531,7 +584,17 @@ Now analyze this message:"""
             "create_invoice": "invoice",
             "track_client": "client",
             "query_status": "finance",
-            "chat": None
+            "chat": None,
+            # Vidify HQ Dashboard intents
+            "vidify_add_client": "vidify",
+            "vidify_add_project": "vidify",
+            "vidify_log_income": "vidify",
+            "vidify_log_expense": "vidify",
+            "vidify_add_team_member": "vidify",
+            "vidify_pay_salary": "vidify",
+            "vidify_get_stats": "vidify",
+            "vidify_list_clients": "vidify",
+            "vidify_list_projects": "vidify",
         }
         
         return mapping.get(intent)

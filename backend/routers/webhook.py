@@ -251,6 +251,24 @@ async def receive_message(
                 # Fallback to a generic error message
                 response_message = "Sorry, I couldn't process that financial request. Make sure your Google account is connected!"
         
+        elif intent_result['intent'].startswith('vidify_'):
+            # Vidify HQ Dashboard Agent - Agency management operations
+            from agents.vidify_dashboard import vidify_agent
+            try:
+                vidify_result = await vidify_agent.handle_intent(
+                    intent_result['intent'],
+                    intent_result.get('parameters', {})
+                )
+                
+                if vidify_result.get('success'):
+                    response_message = vidify_result.get('response', response_message)
+                    logger.info(f"🎬 Vidify HQ: {intent_result['intent']} executed successfully")
+                else:
+                    response_message = vidify_result.get('response', response_message)
+            except Exception as e:
+                logger.error(f"Vidify execution error: {e}", exc_info=True)
+                response_message = "Sorry, I couldn't process that Vidify request. Please check the Firebase connection!"
+        
         # For ALL other intents (finance, chat, etc.), TRUST the intent_router's response
         # No need to fall back to old parser - intent_router handles everything
         

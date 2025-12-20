@@ -1,5 +1,5 @@
 """Routers package for API endpoints."""
-from . import webhook, finance, calendar, memory, agent, profile
+from . import webhook, finance, calendar, memory, agent, profile, vidify
 
 __all__ = [
     "webhook",
@@ -7,6 +7,7 @@ __all__ = [
     "calendar",
     "memory",
     "agent",
-    "profile"
+    "profile",
+    "vidify"
 ]
 

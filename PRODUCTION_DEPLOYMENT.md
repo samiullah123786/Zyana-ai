@@ -58,8 +58,8 @@ We'll use these FREE platforms (best combination for your project):
 4. **Copy Connection Details**:
    - Click on your database
    - Go to **REST API** tab
-   - Copy the `UPSTASH_REDIS_REST_URL`
-   - Copy the `UPSTASH_REDIS_REST_TOKEN`
+   - Copy the `UPSTASH_REDIS_REST_URL`https://prepared-swan-28344.upstash.io
+   - Copy the `UPSTASH_REDIS_REST_TOKEN`AW64AAIncDI2NTFkYjcyN2Q5NTU0MDFmYmUzYmU1M2EzMGRkMzU5OXAyMjgzNDQ
 
 5. **Save for later** (we'll use in backend deployment)
 
@@ -81,8 +81,8 @@ We'll use these FREE platforms (best combination for your project):
 
 4. **Get Connection Details**:
    - Click on your cluster
-   - Copy **Cluster URL** (like `https://xxx.qdrant.io`)
-   - Click **API Keys** → **Create API Key**
+   - Copy **Cluster URL** (like `https://xxx.qdrant.io`)https://f4fab578-ab34-48aa-b411-b54bf9fd02c1.europe-west3-0.gcp.cloud.qdrant.io
+   - Click **API Keys** → **Create API Key**eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.BIArqqrc50qJzCT6dXYA_LcZM1IpPgoe9ZCPEuWYT2g
    - Copy the API key
 
 5. **Save for later**
@@ -154,9 +154,9 @@ GOOGLE_REDIRECT_URI=https://your-render-app.onrender.com/auth/google/callback
 SUPABASE_URL=https://yrwlvurrjzsosfkyaacq.supabase.co
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlyd2x2dXJyanpzb3Nma3lhYWNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwNTY2NDIsImV4cCI6MjA3NjYzMjY0Mn0.6MK8ARbgQS9Oga8UrnhmFY8otvO0PC_3FUJ7izOz008
 SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlyd2x2dXJyanpzb3Nma3lhYWNxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MTA1NjY0MiwiZXhwIjoyMDc2NjMyNjQyfQ.GSotk1NrrrBXRuUxstnSbZTrAisdcIBTLGFaJAnRdp0
-QDRANT_URL=YOUR_QDRANT_CLUSTER_URL
-QDRANT_API_KEY=YOUR_QDRANT_API_KEY
-REDIS_URL=YOUR_UPSTASH_REDIS_URL
+QDRANT_URL=https://f4fab578-ab34-48aa-b411-b54bf9fd02c1.europe-west3-0.gcp.cloud.qdrant.io
+QDRANT_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.BIArqqrc50qJzCT6dXYA_LcZM1IpPgoe9ZCPEuWYT2g
+REDIS_URL=https://prepared-swan-28344.upstash.io
 JWT_SECRET=your-secret-key-change-me-$(openssl rand -hex 32)
 ENVIRONMENT=production
 ```
